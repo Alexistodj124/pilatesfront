@@ -5,9 +5,19 @@ import {
   Chip,
   Divider,
   Paper,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  List,
+  ListItem,
+  ListItemText,
+  IconButton,
   Stack,
   Typography,
 } from '@mui/material'
+import DeleteIcon from '@mui/icons-material/Delete'
 
 const BASE_CLASSES = [
   { id: 'sunrise', name: 'Amanecer Power', time: '06:00', coach: 'Ana', capacity: 10 },
@@ -59,10 +69,10 @@ const buildNextSixDays = () => {
   return days
 }
 
-const ClassCard = ({ classInfo, booked }) => {
+const ClassCard = ({ classInfo, booked, onClick }) => {
   const isFull = booked >= classInfo.capacity
   const remaining = Math.max(classInfo.capacity - booked, 0)
-  const chipLabel = isFull ? 'Completa' : `Disponible (${remaining} cupos)`
+  const chipLabel = isFull ? 'Llena' : `Disponible (${remaining} cupos)`
   const backgroundColor = isFull ? '#f5d6d6' : '#d6f5e4'
   const borderColor = isFull ? '#d32f2f' : '#2e7d32'
 
@@ -73,7 +83,9 @@ const ClassCard = ({ classInfo, booked }) => {
         borderRadius: 2,
         backgroundColor,
         border: `1px solid ${borderColor}`,
+        cursor: 'pointer',
       }}
+      onClick={onClick}
     >
       <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
         <Typography variant="subtitle1" fontWeight={600}>
@@ -95,8 +107,69 @@ const ClassCard = ({ classInfo, booked }) => {
 
 export default function Ventas() {
   const days = React.useMemo(() => buildNextSixDays(), [])
+  const initialBookings = React.useMemo(() => {
+    const map = {}
+    days.forEach((day) => {
+      map[day.index] = {}
+      BASE_CLASSES.forEach((cls) => {
+        map[day.index][cls.id] = []
+      })
+    })
+    // Ejemplos para ver la lista en acción
+    if (map[0]?.sunrise) map[0].sunrise = ['Carla', 'Luis']
+    if (map[0]?.after) map[0].after = ['Marta']
+    return map
+  }, [days])
+
+  const [bookings, setBookings] = React.useState(initialBookings)
+  const [dialogOpen, setDialogOpen] = React.useState(false)
+  const [selectedClass, setSelectedClass] = React.useState(null)
+  const [newClient, setNewClient] = React.useState('')
   const [selectedDayIndex, setSelectedDayIndex] = React.useState(0)
   const selectedDay = days[selectedDayIndex] ?? days[0]
+
+  const selectedAttendees = React.useMemo(() => {
+    if (!selectedClass) return []
+    return bookings[selectedClass.dayIndex]?.[selectedClass.classInfo.id] ?? []
+  }, [bookings, selectedClass])
+
+  const handleOpenDialog = (dayIndex, classInfo) => {
+    setSelectedClass({ dayIndex, classInfo })
+    setNewClient('')
+    setDialogOpen(true)
+  }
+
+  const handleAddClient = () => {
+    const name = newClient.trim()
+    if (!name || !selectedClass) return
+    setBookings((prev) => {
+      const existing = prev[selectedClass.dayIndex]?.[selectedClass.classInfo.id] ?? []
+      const updatedClass = [...existing, name]
+      return {
+        ...prev,
+        [selectedClass.dayIndex]: {
+          ...prev[selectedClass.dayIndex],
+          [selectedClass.classInfo.id]: updatedClass,
+        },
+      }
+    })
+    setNewClient('')
+  }
+
+  const handleDeleteClient = (index) => {
+    if (!selectedClass) return
+    setBookings((prev) => {
+      const existing = prev[selectedClass.dayIndex]?.[selectedClass.classInfo.id] ?? []
+      const updatedClass = existing.filter((_, idx) => idx !== index)
+      return {
+        ...prev,
+        [selectedClass.dayIndex]: {
+          ...prev[selectedClass.dayIndex],
+          [selectedClass.classInfo.id]: updatedClass,
+        },
+      }
+    })
+  }
 
   return (
     <Box>
@@ -111,7 +184,7 @@ export default function Ventas() {
         <Box sx={{ width: 14, height: 14, borderRadius: 0.8, backgroundColor: '#d6f5e4', border: '1px solid #2e7d32' }} />
         <Typography variant="body2" fontWeight={600}>Disponible</Typography>
         <Box sx={{ width: 14, height: 14, borderRadius: 0.8, backgroundColor: '#f5d6d6', border: '1px solid #d32f2f' }} />
-        <Typography variant="body2" fontWeight={600}>Completa</Typography>
+        <Typography variant="body2" fontWeight={600}>Llena</Typography>
       </Stack>
 
       <Stack direction="row" spacing={1} sx={{ mb: 2 }} flexWrap="wrap">
@@ -162,12 +235,73 @@ export default function Ventas() {
                   key={classInfo.id}
                   classInfo={classInfo}
                   booked={AVAILABILITY_BY_DAY[selectedDay.index]?.[classInfo.id] ?? 0}
+                  onClick={() => handleOpenDialog(selectedDay.index, classInfo)}
                 />
               ))}
             </Stack>
           </Stack>
         </Paper>
       )}
+
+      <Dialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>
+          {selectedClass
+            ? `${selectedClass.classInfo.name} · ${selectedClass.classInfo.time}`
+            : 'Clase'}
+        </DialogTitle>
+        <DialogContent dividers>
+          {selectedClass && (
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Día {selectedClass.dayIndex + 1}: {days[selectedClass.dayIndex]?.label}
+            </Typography>
+          )}
+
+          <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+            <TextField
+              fullWidth
+              label="Nombre del cliente"
+              value={newClient}
+              onChange={(e) => setNewClient(e.target.value)}
+              size="small"
+            />
+            <Button variant="contained" onClick={handleAddClient} disabled={!newClient.trim()}>
+              Agregar
+            </Button>
+          </Stack>
+
+          <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>
+            Clientes en esta clase
+          </Typography>
+          {selectedAttendees.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">
+              Sin clientes aún.
+            </Typography>
+          ) : (
+            <List dense>
+              {selectedAttendees.map((client, idx) => (
+                <ListItem
+                  key={`${client}-${idx}`}
+                  secondaryAction={(
+                    <IconButton edge="end" aria-label="delete" onClick={() => handleDeleteClient(idx)}>
+                      <DeleteIcon />
+                    </IconButton>
+                  )}
+                >
+                  <ListItemText primary={client} />
+                </ListItem>
+              ))}
+            </List>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDialogOpen(false)}>Cerrar</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }

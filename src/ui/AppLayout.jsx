@@ -35,7 +35,7 @@ export default function AppLayout() {
                 Inicio
               </Button>
               <Button color="inherit" component={RouterLink} to="/ventas">
-                Ventas
+                Calendario
               </Button>
               <Button color="inherit" component={RouterLink} to="/compras">
                 Compras
