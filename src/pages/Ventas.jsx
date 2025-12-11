@@ -1,9 +1,9 @@
 import React from 'react'
 import {
   Box,
+  Button,
   Chip,
   Divider,
-  Grid,
   Paper,
   Stack,
   Typography,
@@ -38,20 +38,26 @@ const formatShortDate = (date) => new Intl.DateTimeFormat('es-MX', {
   day: '2-digit',
 }).format(date)
 
-const buildNextSixDays = () => (
-  Array.from({ length: 6 }, (_, index) => {
-    const date = new Date()
-    date.setHours(0, 0, 0, 0)
-    date.setDate(date.getDate() + index)
+const buildNextSixDays = () => {
+  const days = []
+  const cursor = new Date()
+  cursor.setHours(0, 0, 0, 0)
 
-    return {
-      index,
-      date,
-      label: formatDayLabel(date),
-      shortDate: formatShortDate(date),
+  while (days.length < 6) {
+    const isSunday = cursor.getDay() === 0
+    if (!isSunday) {
+      days.push({
+        index: days.length,
+        date: new Date(cursor),
+        label: formatDayLabel(cursor),
+        shortDate: formatShortDate(cursor),
+      })
     }
-  })
-)
+    cursor.setDate(cursor.getDate() + 1)
+  }
+
+  return days
+}
 
 const ClassCard = ({ classInfo, booked }) => {
   const isFull = booked >= classInfo.capacity
@@ -89,6 +95,8 @@ const ClassCard = ({ classInfo, booked }) => {
 
 export default function Ventas() {
   const days = React.useMemo(() => buildNextSixDays(), [])
+  const [selectedDayIndex, setSelectedDayIndex] = React.useState(0)
+  const selectedDay = days[selectedDayIndex] ?? days[0]
 
   return (
     <Box>
@@ -106,45 +114,60 @@ export default function Ventas() {
         <Typography variant="body2" fontWeight={600}>Completa</Typography>
       </Stack>
 
-      <Grid container spacing={2}>
-        {days.map((day) => (
-          <Grid item xs={12} sm={6} md={4} lg={2} key={day.index}>
-            <Paper
-              elevation={0}
-              sx={{
-                p: 2,
-                borderRadius: 3,
-                backgroundColor: '#f4efe6',
-                border: '1px solid #d9cdbb',
-                height: '100%',
-              }}
-            >
-              <Stack spacing={1.5} height="100%">
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary">
-                    Día {day.index + 1} · {day.shortDate}
-                  </Typography>
-                  <Typography variant="h6" fontWeight={700}>
-                    {day.label}
-                  </Typography>
-                </Box>
-
-                <Divider />
-
-                <Stack spacing={1.5} flexGrow={1}>
-                  {BASE_CLASSES.map((classInfo) => (
-                    <ClassCard
-                      key={classInfo.id}
-                      classInfo={classInfo}
-                      booked={AVAILABILITY_BY_DAY[day.index]?.[classInfo.id] ?? 0}
-                    />
-                  ))}
-                </Stack>
-              </Stack>
-            </Paper>
-          </Grid>
+      <Stack direction="row" spacing={1} sx={{ mb: 2 }} flexWrap="wrap">
+        {days.map((day, idx) => (
+          <Button
+            key={day.index}
+            variant={idx === selectedDayIndex ? 'contained' : 'outlined'}
+            size="small"
+            onClick={() => setSelectedDayIndex(idx)}
+            sx={{
+              textTransform: 'none',
+              fontWeight: 700,
+              borderRadius: 2,
+              flex: 1,
+              minWidth: '140px',
+            }}
+          >
+            {day.label}
+          </Button>
         ))}
-      </Grid>
+      </Stack>
+
+      {selectedDay && (
+        <Paper
+          elevation={0}
+          sx={{
+            p: 2,
+            borderRadius: 3,
+            backgroundColor: '#f4efe6',
+            border: '1px solid #d9cdbb',
+          }}
+        >
+          <Stack spacing={1.5}>
+            <Box>
+              <Typography variant="subtitle2" color="text.secondary">
+                Día {selectedDay.index + 1} · {selectedDay.shortDate}
+              </Typography>
+              <Typography variant="h6" fontWeight={700}>
+                {selectedDay.label}
+              </Typography>
+            </Box>
+
+            <Divider />
+
+            <Stack spacing={1.5}>
+              {BASE_CLASSES.map((classInfo) => (
+                <ClassCard
+                  key={classInfo.id}
+                  classInfo={classInfo}
+                  booked={AVAILABILITY_BY_DAY[selectedDay.index]?.[classInfo.id] ?? 0}
+                />
+              ))}
+            </Stack>
+          </Stack>
+        </Paper>
+      )}
     </Box>
   )
 }
