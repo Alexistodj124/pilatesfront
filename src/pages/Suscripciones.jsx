@@ -15,6 +15,32 @@ function calcTotal(items = []) {
   }, 0)
 }
 
+// Datos inventados de membresía para mostrar estado, tipo y vencimiento
+const MEMBERSHIP_TYPES = ['Mensual', 'Trimestral', 'Anual', 'Paquete 10 clases', 'Clase suelta']
+function buildMockMembership(seedKey = '0') {
+  const hash = seedKey
+    .toString()
+    .split('')
+    .reduce((acc, char) => acc + char.charCodeAt(0), 0)
+
+  const type = MEMBERSHIP_TYPES[hash % MEMBERSHIP_TYPES.length]
+  const start = dayjs().subtract((hash % 20) + 1, 'day')
+
+  const durationByType = {
+    Mensual: 30,
+    Trimestral: 90,
+    Anual: 365,
+    'Paquete 10 clases': 60,
+    'Clase suelta': 3,
+  }
+  const duration = durationByType[type] || 30
+
+  const endsAt = start.add(duration, 'day')
+  const active = dayjs().isBefore(endsAt)
+
+  return { type, endsAt, active }
+}
+
 export default function Clientes() {
   const [query, setQuery] = React.useState('')
   const [ordenes, setOrdenes] = React.useState([])
@@ -54,6 +80,7 @@ export default function Clientes() {
       const totalOrden = calcTotal(o.items || [])
 
       if (!map.has(key)) {
+        const membership = buildMockMembership(key)
         map.set(key, {
           id: key,
           nombre: cli.nombre,
@@ -63,6 +90,9 @@ export default function Clientes() {
           ordenes: [o],
           total: totalOrden,
           ultima: o.fecha,
+          membershipType: membership.type,
+          membershipEnds: membership.endsAt,
+          isActive: membership.active,
         })
       } else {
         const c = map.get(key)
@@ -124,9 +154,12 @@ export default function Clientes() {
               <TableRow>
                 <TableCell>Cliente</TableCell>
                 <TableCell>Teléfono</TableCell>
-                <TableCell align="right">Órdenes</TableCell>
+                <TableCell>Estado</TableCell>
+                <TableCell>Membresía</TableCell>
+                <TableCell>Vence</TableCell>
+                {/* <TableCell align="right">Órdenes</TableCell>
                 <TableCell align="right">Total gastado</TableCell>
-                <TableCell>Última compra</TableCell>
+                <TableCell>Última compra</TableCell> */}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -140,14 +173,24 @@ export default function Clientes() {
                 >
                   <TableCell>{c.nombre}</TableCell>
                   <TableCell>{c.telefono}</TableCell>
-                  <TableCell align="right">{c.ordenes.length}</TableCell>
+                  <TableCell>
+                    <Chip
+                      size="small"
+                      label={c.isActive ? 'Activo' : 'Inactivo'}
+                      color={c.isActive ? 'success' : 'error'}
+                      variant={c.isActive ? 'filled' : 'outlined'}
+                    />
+                  </TableCell>
+                  <TableCell>{c.membershipType}</TableCell>
+                  <TableCell>{dayjs(c.membershipEnds).format('YYYY-MM-DD')}</TableCell>
+                  {/* <TableCell align="right">{c.ordenes.length}</TableCell>
                   <TableCell align="right">Q {c.total.toFixed(2)}</TableCell>
-                  <TableCell>{dayjs(c.ultima).format('YYYY-MM-DD HH:mm')}</TableCell>
+                  <TableCell>{dayjs(c.ultima).format('YYYY-MM-DD HH:mm')}</TableCell> */}
                 </TableRow>
               ))}
               {clientes.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5}>
+                  <TableCell colSpan={8}>
                     <Typography align="center" color="text.secondary">
                       No hay clientes que coincidan
                     </Typography>
@@ -181,6 +224,19 @@ export default function Clientes() {
               <Typography variant="body2" color="text.secondary">
                 {clienteSel.nit ? `NIT: ${clienteSel.nit}` : 'NIT: —'}
               </Typography>
+            )}
+            {clienteSel && (
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1 }}>
+                <Chip
+                  size="small"
+                  label={clienteSel.isActive ? 'Activo' : 'Inactivo'}
+                  color={clienteSel.isActive ? 'success' : 'error'}
+                  variant={clienteSel.isActive ? 'filled' : 'outlined'}
+                />
+                <Typography variant="body2" color="text.secondary">
+                  {clienteSel.membershipType} · vence {dayjs(clienteSel.membershipEnds).format('YYYY-MM-DD')}
+                </Typography>
+              </Stack>
             )}
           </Box>
           <Table size="small">

@@ -6,11 +6,20 @@ import Toolbar from '@mui/material/Toolbar'
 import Button from '@mui/material/Button'
 import Container from '@mui/material/Container'
 import Typography from '@mui/material/Typography'
+import Menu from '@mui/material/Menu'
+import MenuItem from '@mui/material/MenuItem'
 import { useAuth } from '../context/AuthContext'
 
 export default function AppLayout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const [anchorAgenda, setAnchorAgenda] = React.useState(null)
+  const [anchorOps, setAnchorOps] = React.useState(null)
+
+  const handleOpenAgenda = (event) => setAnchorAgenda(event.currentTarget)
+  const handleOpenOps = (event) => setAnchorOps(event.currentTarget)
+  const handleCloseAgenda = () => setAnchorAgenda(null)
+  const handleCloseOps = () => setAnchorOps(null)
 
   const handleLogout = () => {
     logout()                               // limpia contexto + localStorage
@@ -25,7 +34,7 @@ export default function AppLayout() {
       >
         <Toolbar>
           <Typography sx={{ flexGrow: 1 }} variant="h6">
-            AM BOUTIQUE
+            Mar'he Pilates
           </Typography>
 
           {/* Navegación solo si está logueado */}
@@ -34,18 +43,50 @@ export default function AppLayout() {
               <Button color="inherit" component={RouterLink} to="/">
                 Inicio
               </Button>
-              <Button color="inherit" component={RouterLink} to="/ventas">
-                Calendario
+              <Button color="inherit" onClick={handleOpenAgenda}>
+                Clases ▾
               </Button>
-              <Button color="inherit" component={RouterLink} to="/compras">
-                Compras
+              <Menu
+                anchorEl={anchorAgenda}
+                open={Boolean(anchorAgenda)}
+                onClose={handleCloseAgenda}
+              >
+                <MenuItem component={RouterLink} to="/reservas" onClick={handleCloseAgenda}>
+                  Calendario
+                </MenuItem>
+                <MenuItem component={RouterLink} to="/asistencias" onClick={handleCloseAgenda}>
+                  Asistencias
+                </MenuItem>
+                <MenuItem component={RouterLink} to="/suscripciones" onClick={handleCloseAgenda}>
+                  Suscripciones
+                </MenuItem>
+                <MenuItem component={RouterLink} to="/reportesclases" onClick={handleCloseOps}>
+                  Reportes
+                </MenuItem>
+              </Menu>
+
+              <Button color="inherit" onClick={handleOpenOps}>
+                Productos ▾
               </Button>
-              <Button color="inherit" component={RouterLink} to="/reportes">
-                Reportes
-              </Button>
-              <Button color="inherit" component={RouterLink} to="/clientes">
-                Clientes
-              </Button>
+              <Menu
+                anchorEl={anchorOps}
+                open={Boolean(anchorOps)}
+                onClose={handleCloseOps}
+              >
+                <MenuItem component={RouterLink} to="/ventas" onClick={handleCloseOps}>
+                  Ventas
+                </MenuItem>
+                <MenuItem component={RouterLink} to="/compras" onClick={handleCloseOps}>
+                  Compras
+                </MenuItem>
+                <MenuItem component={RouterLink} to="/clientes" onClick={handleCloseOps}>
+                  Clientes
+                </MenuItem>
+                <MenuItem component={RouterLink} to="/reportes" onClick={handleCloseOps}>
+                  Reportes
+                </MenuItem>
+              </Menu>
+              
 
               {/* Mostrar usuario + Logout */}
               <Typography

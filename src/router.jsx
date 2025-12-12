@@ -9,6 +9,9 @@ import Ventas from './pages/Ventas.jsx'
 import Compras from './pages/Compras.jsx'
 import Reportes from './pages/Reportes.jsx'
 import Clientes from './pages/Clientes.jsx'
+import Asistencias from './pages/Asistencias.jsx'
+import Reservas from './pages/Reservas.jsx'
+import Suscripciones from './pages/Suscripciones.jsx'
 import { RequireAuth, RequireAdmin } from './ProtectedRoutes.jsx'
 
 const router = createBrowserRouter(
@@ -30,6 +33,30 @@ const router = createBrowserRouter(
           element: (
             <RequireAuth>
               <Ventas />
+            </RequireAuth>
+          ),
+        },
+        {
+          path: 'reservas',
+          element: (
+            <RequireAuth>
+              <Reservas />
+            </RequireAuth>
+          ),
+        },
+        {
+          path: 'asistencias',
+          element: (
+            <RequireAuth>
+              <Asistencias />
+            </RequireAuth>
+          ),
+        },
+        {
+          path: 'suscripciones',
+          element: (
+            <RequireAuth>
+              <Suscripciones />
             </RequireAuth>
           ),
         },
@@ -67,4 +94,3 @@ const router = createBrowserRouter(
 )
 
 export default router
-
