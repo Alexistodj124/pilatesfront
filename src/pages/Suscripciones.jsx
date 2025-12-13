@@ -19,63 +19,20 @@ import {
   TextField,
   MenuItem,
   Divider,
+  Alert,
 } from '@mui/material'
 import dayjs from 'dayjs'
+import { API_BASE_URL } from '../config/api'
 
-const initialPlans = [
-  { id: 1, nombre: 'Mensual', max_clases_por_semana: 4, max_clases_totales: null, duracion_dias: 30, precio: 350, activo: true },
-  { id: 2, nombre: 'Trimestral', max_clases_por_semana: 5, max_clases_totales: null, duracion_dias: 90, precio: 900, activo: true },
-  { id: 3, nombre: 'Paquete 10 clases', max_clases_por_semana: null, max_clases_totales: 10, duracion_dias: 60, precio: 500, activo: true },
-]
-
-const initialClients = [
-  {
-    id: 1,
-    nombre: 'Carla Pérez',
-    telefono: '5555-1111',
-    email: 'carla@example.com',
-    activo: true,
-    membership: {
-      plan_id: 1,
-      fecha_inicio: dayjs().subtract(5, 'day'),
-      fecha_fin: dayjs().add(25, 'day'),
-      estado: 'Activo',
-      clases_usadas: 2,
-    },
-  },
-  {
-    id: 2,
-    nombre: 'Luis Gómez',
-    telefono: '5555-2222',
-    email: 'luis@example.com',
-    activo: true,
-    membership: {
-      plan_id: 3,
-      fecha_inicio: dayjs().subtract(10, 'day'),
-      fecha_fin: dayjs().add(50, 'day'),
-      estado: 'Activo',
-      clases_usadas: 4,
-    },
-  },
-  {
-    id: 3,
-    nombre: 'Marta Ruiz',
-    telefono: '5555-3333',
-    email: 'marta@example.com',
-    activo: false,
-    membership: {
-      plan_id: 2,
-      fecha_inicio: dayjs().subtract(80, 'day'),
-      fecha_fin: dayjs().add(10, 'day'),
-      estado: 'En pausa',
-      clases_usadas: 6,
-    },
-  },
-]
+const parseDate = (value) => (value ? dayjs(value) : null)
 
 export default function Suscripciones() {
-  const [plans, setPlans] = React.useState(initialPlans)
-  const [clients, setClients] = React.useState(initialClients)
+  const [plans, setPlans] = React.useState([])
+  const [clients, setClients] = React.useState([])
+  const [memberships, setMemberships] = React.useState([])
+  const [loading, setLoading] = React.useState(false)
+  const [error, setError] = React.useState('')
+
   const [openClientDialog, setOpenClientDialog] = React.useState(false)
   const [openPlanDialog, setOpenPlanDialog] = React.useState(false)
 
@@ -83,7 +40,7 @@ export default function Suscripciones() {
     nombre: '',
     telefono: '',
     email: '',
-    plan_id: 1,
+    plan_id: '',
     fecha_inicio: dayjs().format('YYYY-MM-DD'),
     estado: 'Activo',
   })
@@ -97,79 +54,165 @@ export default function Suscripciones() {
     activo: true,
   })
 
-  const resetClientForm = () => {
-    setClientForm({
-      nombre: '',
-      telefono: '',
-      email: '',
-      plan_id: plans[0]?.id || '',
-      fecha_inicio: dayjs().format('YYYY-MM-DD'),
-      estado: 'Activo',
-    })
-  }
+  const loadData = React.useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const [plansRes, clientsRes, membershipsRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/membership-plans`),
+        fetch(`${API_BASE_URL}/clients`),
+        fetch(`${API_BASE_URL}/memberships`),
+      ])
 
-  const handleSavePlan = () => {
-    const newId = plans.length ? Math.max(...plans.map(p => p.id)) + 1 : 1
-    const newPlan = {
-      ...planForm,
-      id: newId,
-      max_clases_por_semana: planForm.max_clases_por_semana ? Number(planForm.max_clases_por_semana) : null,
-      max_clases_totales: planForm.max_clases_totales ? Number(planForm.max_clases_totales) : null,
-      duracion_dias: planForm.duracion_dias ? Number(planForm.duracion_dias) : null,
-      precio: planForm.precio ? Number(planForm.precio) : 0,
-      activo: true,
+      if (!plansRes.ok || !clientsRes.ok || !membershipsRes.ok) {
+        throw new Error('Error al cargar datos de suscripciones')
+      }
+
+      const [plansData, clientsData, membershipsData] = await Promise.all([
+        plansRes.json(),
+        clientsRes.json(),
+        membershipsRes.json(),
+      ])
+
+      setPlans(plansData)
+      setClients(clientsData)
+      setMemberships(membershipsData)
+
+      setClientForm((prev) => ({
+        ...prev,
+        plan_id: plansData[0]?.id || '',
+      }))
+    } catch (err) {
+      console.error(err)
+      setError('No se pudieron cargar datos de suscripciones')
+    } finally {
+      setLoading(false)
     }
-    setPlans((prev) => [...prev, newPlan])
-    setPlanForm({
-      nombre: '',
-      max_clases_por_semana: '',
-      max_clases_totales: '',
-      duracion_dias: '',
-      precio: '',
-      activo: true,
-    })
-    setOpenPlanDialog(false)
-    setClientForm((prev) => ({ ...prev, plan_id: newId }))
-  }
+  }, [])
 
-  const handleSaveClient = () => {
-    const plan = plans.find(p => p.id === Number(clientForm.plan_id))
-    if (!plan) return
+  React.useEffect(() => {
+    loadData()
+  }, [loadData])
 
-    const start = dayjs(clientForm.fecha_inicio)
-    const end = plan.duracion_dias ? start.add(plan.duracion_dias, 'day') : start.add(30, 'day')
+  const handleSavePlan = async () => {
+    try {
+      const payload = {
+        nombre: planForm.nombre,
+        max_clases_por_semana: planForm.max_clases_por_semana ? Number(planForm.max_clases_por_semana) : null,
+        max_clases_totales: planForm.max_clases_totales ? Number(planForm.max_clases_totales) : null,
+        duracion_dias: planForm.duracion_dias ? Number(planForm.duracion_dias) : null,
+        precio: planForm.precio ? Number(planForm.precio) : 0,
+        activo: true,
+      }
 
-    const newClient = {
-      id: clients.length ? Math.max(...clients.map(c => c.id)) + 1 : 1,
-      nombre: clientForm.nombre,
-      telefono: clientForm.telefono,
-      email: clientForm.email,
-      activo: true,
-      membership: {
-        plan_id: plan.id,
-        fecha_inicio: start,
-        fecha_fin: end,
-        estado: clientForm.estado,
-        clases_usadas: 0,
-      },
+      const res = await fetch(`${API_BASE_URL}/membership-plans`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) throw new Error('No se pudo crear el plan')
+      const data = await res.json()
+      setOpenPlanDialog(false)
+      setPlanForm({
+        nombre: '',
+        max_clases_por_semana: '',
+        max_clases_totales: '',
+        duracion_dias: '',
+        precio: '',
+        activo: true,
+      })
+      setClientForm((prev) => ({ ...prev, plan_id: data.id }))
+      loadData()
+    } catch (err) {
+      console.error(err)
+      setError('No se pudo crear el plan')
     }
-
-    setClients((prev) => [...prev, newClient])
-    setOpenClientDialog(false)
-    resetClientForm()
   }
+
+  const handleSaveClient = async () => {
+    try {
+      setError('')
+      const resClient = await fetch(`${API_BASE_URL}/clients`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre: clientForm.nombre,
+          telefono: clientForm.telefono,
+          email: clientForm.email,
+          activo: true,
+        }),
+      })
+      if (!resClient.ok) throw new Error('No se pudo crear el cliente')
+      const clientData = await resClient.json()
+
+      const selectedPlan = plans.find((p) => Number(p.id) === Number(clientForm.plan_id))
+      const start = dayjs(clientForm.fecha_inicio)
+      const end = selectedPlan?.duracion_dias ? start.add(selectedPlan.duracion_dias, 'day') : start.add(30, 'day')
+
+      const resMembership = await fetch(`${API_BASE_URL}/memberships`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_id: clientData.id,
+          plan_id: clientForm.plan_id,
+          fecha_inicio: start.format('YYYY-MM-DD'),
+          fecha_fin: end.format('YYYY-MM-DD'),
+          estado: clientForm.estado,
+          clases_usadas: 0,
+        }),
+      })
+      if (!resMembership.ok) throw new Error('No se pudo crear la membresía')
+
+      setOpenClientDialog(false)
+      setClientForm({
+        nombre: '',
+        telefono: '',
+        email: '',
+        plan_id: plans[0]?.id || '',
+        fecha_inicio: dayjs().format('YYYY-MM-DD'),
+        estado: 'Activo',
+      })
+      loadData()
+    } catch (err) {
+      console.error(err)
+      setError('No se pudo crear el cliente o su membresía')
+    }
+  }
+
+  const planMap = React.useMemo(() => {
+    const map = {}
+    plans.forEach((p) => {
+      map[p.id] = p
+    })
+    return map
+  }, [plans])
+
+  const membershipByClient = React.useMemo(() => {
+    const map = {}
+    memberships.forEach((m) => {
+      if (!map[m.client_id]) map[m.client_id] = []
+      map[m.client_id].push(m)
+    })
+    return map
+  }, [memberships])
 
   const enhancedClients = React.useMemo(() => {
     return clients.map((client) => {
-      const plan = plans.find(p => p.id === client.membership.plan_id)
+      const list = membershipByClient[client.id] || []
+      const latest = list
+        .slice()
+        .sort((a, b) => dayjs(b.fecha_fin).valueOf() - dayjs(a.fecha_fin).valueOf())[0]
+
+      const plan = latest ? planMap[latest.plan_id] : null
       return {
         ...client,
+        membership: latest,
         planName: plan?.nombre || '—',
         planPrice: plan?.precio,
-        vence: client.membership.fecha_fin,
+        vence: latest ? parseDate(latest.fecha_fin) : null,
       }
     })
-  }, [clients, plans])
+  }, [clients, membershipByClient, planMap])
 
   return (
     <Box sx={{ maxWidth: 1200, mx: 'auto', mt: 3 }}>
@@ -177,10 +220,16 @@ export default function Suscripciones() {
         <Typography variant="h5" sx={{ fontWeight: 600 }}>
           Suscripciones
         </Typography>
-        <Button variant="contained" onClick={() => setOpenClientDialog(true)}>
+        <Button variant="contained" onClick={() => setOpenClientDialog(true)} disabled={plans.length === 0}>
           Agregar cliente
         </Button>
       </Stack>
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+      )}
 
       <Paper sx={{ p: 2, borderRadius: 3, mb: 2 }}>
         <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>
@@ -220,22 +269,26 @@ export default function Suscripciones() {
                 <TableCell>{c.telefono}</TableCell>
                 <TableCell>{c.planName}</TableCell>
                 <TableCell>
-                  <Chip
-                    size="small"
-                    label={c.membership.estado}
-                    color={c.membership.estado === 'Activo' ? 'success' : 'warning'}
-                    variant={c.membership.estado === 'Activo' ? 'filled' : 'outlined'}
-                  />
+                  {c.membership ? (
+                    <Chip
+                      size="small"
+                      label={c.membership.estado}
+                      color={c.membership.estado === 'Activo' ? 'success' : 'warning'}
+                      variant={c.membership.estado === 'Activo' ? 'filled' : 'outlined'}
+                    />
+                  ) : (
+                    <Chip size="small" label="Sin membresía" variant="outlined" />
+                  )}
                 </TableCell>
-                <TableCell>{dayjs(c.vence).format('YYYY-MM-DD')}</TableCell>
-                <TableCell align="right">{c.membership.clases_usadas}</TableCell>
+                <TableCell>{c.vence ? c.vence.format('YYYY-MM-DD') : '—'}</TableCell>
+                <TableCell align="right">{c.membership?.clases_usadas ?? '—'}</TableCell>
               </TableRow>
             ))}
             {enhancedClients.length === 0 && (
               <TableRow>
                 <TableCell colSpan={6} align="center">
                   <Typography color="text.secondary">
-                    No hay clientes con suscripción aún.
+                    {loading ? 'Cargando...' : 'No hay clientes con suscripción aún.'}
                   </Typography>
                 </TableCell>
               </TableRow>
@@ -364,7 +417,7 @@ export default function Suscripciones() {
             </Stack>
             <Divider />
             <Typography variant="body2" color="text.secondary">
-              Los planes se crean localmente para demo; el backend aún no está conectado.
+              Los planes se crean usando la API ya conectada.
             </Typography>
           </Stack>
         </DialogContent>
