@@ -1,351 +1,382 @@
-import * as React from 'react'
+import React from 'react'
 import {
-  Box, Paper, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Stack, TextField, Chip, Dialog, DialogTitle, DialogContent, DialogActions, Button, Divider
+  Box,
+  Paper,
+  Typography,
+  Stack,
+  Button,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  MenuItem,
+  Divider,
 } from '@mui/material'
 import dayjs from 'dayjs'
-import { API_BASE_URL } from '../config/api'
 
-// Calcula total de una orden a partir de sus items
-function calcTotal(items = []) {
-  return items.reduce((s, it) => {
-    const precio = it.precio ?? it.price ?? it.precio_unitario ?? 0
-    const qty = it.cantidad ?? it.qty ?? 1
-    return s + precio * qty
-  }, 0)
-}
+const initialPlans = [
+  { id: 1, nombre: 'Mensual', max_clases_por_semana: 4, max_clases_totales: null, duracion_dias: 30, precio: 350, activo: true },
+  { id: 2, nombre: 'Trimestral', max_clases_por_semana: 5, max_clases_totales: null, duracion_dias: 90, precio: 900, activo: true },
+  { id: 3, nombre: 'Paquete 10 clases', max_clases_por_semana: null, max_clases_totales: 10, duracion_dias: 60, precio: 500, activo: true },
+]
 
-// Datos inventados de membresía para mostrar estado, tipo y vencimiento
-const MEMBERSHIP_TYPES = ['Mensual', 'Trimestral', 'Anual', 'Paquete 10 clases', 'Clase suelta']
-function buildMockMembership(seedKey = '0') {
-  const hash = seedKey
-    .toString()
-    .split('')
-    .reduce((acc, char) => acc + char.charCodeAt(0), 0)
+const initialClients = [
+  {
+    id: 1,
+    nombre: 'Carla Pérez',
+    telefono: '5555-1111',
+    email: 'carla@example.com',
+    activo: true,
+    membership: {
+      plan_id: 1,
+      fecha_inicio: dayjs().subtract(5, 'day'),
+      fecha_fin: dayjs().add(25, 'day'),
+      estado: 'Activo',
+      clases_usadas: 2,
+    },
+  },
+  {
+    id: 2,
+    nombre: 'Luis Gómez',
+    telefono: '5555-2222',
+    email: 'luis@example.com',
+    activo: true,
+    membership: {
+      plan_id: 3,
+      fecha_inicio: dayjs().subtract(10, 'day'),
+      fecha_fin: dayjs().add(50, 'day'),
+      estado: 'Activo',
+      clases_usadas: 4,
+    },
+  },
+  {
+    id: 3,
+    nombre: 'Marta Ruiz',
+    telefono: '5555-3333',
+    email: 'marta@example.com',
+    activo: false,
+    membership: {
+      plan_id: 2,
+      fecha_inicio: dayjs().subtract(80, 'day'),
+      fecha_fin: dayjs().add(10, 'day'),
+      estado: 'En pausa',
+      clases_usadas: 6,
+    },
+  },
+]
 
-  const type = MEMBERSHIP_TYPES[hash % MEMBERSHIP_TYPES.length]
-  const start = dayjs().subtract((hash % 20) + 1, 'day')
+export default function Suscripciones() {
+  const [plans, setPlans] = React.useState(initialPlans)
+  const [clients, setClients] = React.useState(initialClients)
+  const [openClientDialog, setOpenClientDialog] = React.useState(false)
+  const [openPlanDialog, setOpenPlanDialog] = React.useState(false)
 
-  const durationByType = {
-    Mensual: 30,
-    Trimestral: 90,
-    Anual: 365,
-    'Paquete 10 clases': 60,
-    'Clase suelta': 3,
+  const [clientForm, setClientForm] = React.useState({
+    nombre: '',
+    telefono: '',
+    email: '',
+    plan_id: 1,
+    fecha_inicio: dayjs().format('YYYY-MM-DD'),
+    estado: 'Activo',
+  })
+
+  const [planForm, setPlanForm] = React.useState({
+    nombre: '',
+    max_clases_por_semana: '',
+    max_clases_totales: '',
+    duracion_dias: '',
+    precio: '',
+    activo: true,
+  })
+
+  const resetClientForm = () => {
+    setClientForm({
+      nombre: '',
+      telefono: '',
+      email: '',
+      plan_id: plans[0]?.id || '',
+      fecha_inicio: dayjs().format('YYYY-MM-DD'),
+      estado: 'Activo',
+    })
   }
-  const duration = durationByType[type] || 30
 
-  const endsAt = start.add(duration, 'day')
-  const active = dayjs().isBefore(endsAt)
+  const handleSavePlan = () => {
+    const newId = plans.length ? Math.max(...plans.map(p => p.id)) + 1 : 1
+    const newPlan = {
+      ...planForm,
+      id: newId,
+      max_clases_por_semana: planForm.max_clases_por_semana ? Number(planForm.max_clases_por_semana) : null,
+      max_clases_totales: planForm.max_clases_totales ? Number(planForm.max_clases_totales) : null,
+      duracion_dias: planForm.duracion_dias ? Number(planForm.duracion_dias) : null,
+      precio: planForm.precio ? Number(planForm.precio) : 0,
+      activo: true,
+    }
+    setPlans((prev) => [...prev, newPlan])
+    setPlanForm({
+      nombre: '',
+      max_clases_por_semana: '',
+      max_clases_totales: '',
+      duracion_dias: '',
+      precio: '',
+      activo: true,
+    })
+    setOpenPlanDialog(false)
+    setClientForm((prev) => ({ ...prev, plan_id: newId }))
+  }
 
-  return { type, endsAt, active }
-}
+  const handleSaveClient = () => {
+    const plan = plans.find(p => p.id === Number(clientForm.plan_id))
+    if (!plan) return
 
-export default function Clientes() {
-  const [query, setQuery] = React.useState('')
-  const [ordenes, setOrdenes] = React.useState([])
-  const [clienteSel, setClienteSel] = React.useState(null)   // objeto cliente agregado
-  const [ordenSel, setOrdenSel] = React.useState(null)       // objeto orden para el diálogo
+    const start = dayjs(clientForm.fecha_inicio)
+    const end = plan.duracion_dias ? start.add(plan.duracion_dias, 'day') : start.add(30, 'day')
 
-  // Cargar órdenes desde el backend
-  React.useEffect(() => {
-    const cargarOrdenes = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/ordenes`)
-        if (!res.ok) {
-          const txt = await res.text()
-          console.error('Error backend /ordenes:', txt)
-          return
-        }
-        const data = await res.json()
-        console.log('Ordenes cargadas:', data)
-        setOrdenes(data)
-      } catch (err) {
-        console.error('Error de red al cargar ordenes:', err)
+    const newClient = {
+      id: clients.length ? Math.max(...clients.map(c => c.id)) + 1 : 1,
+      nombre: clientForm.nombre,
+      telefono: clientForm.telefono,
+      email: clientForm.email,
+      activo: true,
+      membership: {
+        plan_id: plan.id,
+        fecha_inicio: start,
+        fecha_fin: end,
+        estado: clientForm.estado,
+        clases_usadas: 0,
+      },
+    }
+
+    setClients((prev) => [...prev, newClient])
+    setOpenClientDialog(false)
+    resetClientForm()
+  }
+
+  const enhancedClients = React.useMemo(() => {
+    return clients.map((client) => {
+      const plan = plans.find(p => p.id === client.membership.plan_id)
+      return {
+        ...client,
+        planName: plan?.nombre || '—',
+        planPrice: plan?.precio,
+        vence: client.membership.fecha_fin,
       }
-    }
-
-    cargarOrdenes()
-  }, [])
-
-  // ---- Construir "clientes" agregando info desde las órdenes ----
-  const clientes = React.useMemo(() => {
-    const map = new Map()
-
-    for (const o of ordenes) {
-      const cli = o.cliente || {}
-      const key = cli.id || cli.telefono || cli.nombre
-      if (!key) continue
-
-      const totalOrden = calcTotal(o.items || [])
-
-      if (!map.has(key)) {
-        const membership = buildMockMembership(key)
-        map.set(key, {
-          id: key,
-          nombre: cli.nombre,
-          telefono: cli.telefono,
-          email: cli.email,
-          nit: cli.nit,
-          ordenes: [o],
-          total: totalOrden,
-          ultima: o.fecha,
-          membershipType: membership.type,
-          membershipEnds: membership.endsAt,
-          isActive: membership.active,
-        })
-      } else {
-        const c = map.get(key)
-        c.ordenes.push(o)
-        c.total += totalOrden
-        c.ultima = dayjs(o.fecha).isAfter(dayjs(c.ultima)) ? o.fecha : c.ultima
-      }
-    }
-
-    let arr = Array.from(map.values())
-
-    // filtro por texto (nombre o teléfono)
-    if (query.trim()) {
-      const q = query.toLowerCase()
-      arr = arr.filter(c =>
-        (c.nombre || '').toLowerCase().includes(q) ||
-        (c.telefono || '').toLowerCase().includes(q)
-      )
-    }
-
-    // ordenar por última compra desc
-    arr.sort((a, b) => dayjs(b.ultima).valueOf() - dayjs(a.ultima).valueOf())
-    return arr
-  }, [ordenes, query])
-
-  // Órdenes del cliente seleccionado
-  const ordenesCliente = React.useMemo(() => {
-    if (!clienteSel) return []
-    return clienteSel.ordenes
-      .slice()
-      .sort((a, b) => dayjs(b.fecha).valueOf() - dayjs(a.fecha).valueOf())
-  }, [clienteSel])
+    })
+  }, [clients, plans])
 
   return (
     <Box sx={{ maxWidth: 1200, mx: 'auto', mt: 3 }}>
-      <Typography variant="h5" sx={{ mb: 2, fontWeight: 600 }}>
-        Clientes
-      </Typography>
+      <Stack direction={{ xs: 'column', sm: 'row' }} alignItems="center" justifyContent="space-between" spacing={2} sx={{ mb: 2 }}>
+        <Typography variant="h5" sx={{ fontWeight: 600 }}>
+          Suscripciones
+        </Typography>
+        <Button variant="contained" onClick={() => setOpenClientDialog(true)}>
+          Agregar cliente
+        </Button>
+      </Stack>
 
-      {/* Filtros / búsqueda */}
       <Paper sx={{ p: 2, borderRadius: 3, mb: 2 }}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-          <TextField
-            label="Buscar cliente (nombre o teléfono)"
-            size="small"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            fullWidth
-          />
-          <Chip label={`Clientes: ${clientes.length}`} />
+        <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>
+          Planes de membresía
+        </Typography>
+        <Stack direction="row" spacing={1} flexWrap="wrap">
+          {plans.map((plan) => (
+            <Chip
+              key={plan.id}
+              label={`${plan.nombre} · Q${plan.precio}`}
+              color={plan.activo ? 'success' : 'default'}
+              sx={{ mb: 1 }}
+            />
+          ))}
+          <Button size="small" variant="outlined" onClick={() => setOpenPlanDialog(true)}>
+            Nuevo plan
+          </Button>
         </Stack>
       </Paper>
 
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-        {/* -------- Tabla de clientes -------- */}
-        <TableContainer component={Paper} sx={{ borderRadius: 3, flex: 1 }}>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Cliente</TableCell>
-                <TableCell>Teléfono</TableCell>
-                <TableCell>Estado</TableCell>
-                <TableCell>Membresía</TableCell>
-                <TableCell>Vence</TableCell>
-                {/* <TableCell align="right">Órdenes</TableCell>
-                <TableCell align="right">Total gastado</TableCell>
-                <TableCell>Última compra</TableCell> */}
+      <TableContainer component={Paper} sx={{ borderRadius: 3 }}>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>Cliente</TableCell>
+              <TableCell>Teléfono</TableCell>
+              <TableCell>Plan</TableCell>
+              <TableCell>Estado</TableCell>
+              <TableCell>Vence</TableCell>
+              <TableCell align="right">Clases usadas</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {enhancedClients.map((c) => (
+              <TableRow key={c.id} hover>
+                <TableCell>{c.nombre}</TableCell>
+                <TableCell>{c.telefono}</TableCell>
+                <TableCell>{c.planName}</TableCell>
+                <TableCell>
+                  <Chip
+                    size="small"
+                    label={c.membership.estado}
+                    color={c.membership.estado === 'Activo' ? 'success' : 'warning'}
+                    variant={c.membership.estado === 'Activo' ? 'filled' : 'outlined'}
+                  />
+                </TableCell>
+                <TableCell>{dayjs(c.vence).format('YYYY-MM-DD')}</TableCell>
+                <TableCell align="right">{c.membership.clases_usadas}</TableCell>
               </TableRow>
-            </TableHead>
-            <TableBody>
-              {clientes.map(c => (
-                <TableRow
-                  key={c.id}
-                  hover
-                  sx={{ cursor: 'pointer' }}
-                  onClick={() => setClienteSel(c)}
-                  selected={clienteSel?.id === c.id}
-                >
-                  <TableCell>{c.nombre}</TableCell>
-                  <TableCell>{c.telefono}</TableCell>
-                  <TableCell>
-                    <Chip
-                      size="small"
-                      label={c.isActive ? 'Activo' : 'Inactivo'}
-                      color={c.isActive ? 'success' : 'error'}
-                      variant={c.isActive ? 'filled' : 'outlined'}
-                    />
-                  </TableCell>
-                  <TableCell>{c.membershipType}</TableCell>
-                  <TableCell>{dayjs(c.membershipEnds).format('YYYY-MM-DD')}</TableCell>
-                  {/* <TableCell align="right">{c.ordenes.length}</TableCell>
-                  <TableCell align="right">Q {c.total.toFixed(2)}</TableCell>
-                  <TableCell>{dayjs(c.ultima).format('YYYY-MM-DD HH:mm')}</TableCell> */}
-                </TableRow>
-              ))}
-              {clientes.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={8}>
-                    <Typography align="center" color="text.secondary">
-                      No hay clientes que coincidan
-                    </Typography>
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-
-        {/* -------- Detalle: órdenes del cliente seleccionado -------- */}
-        <TableContainer
-          component={Paper}
-          sx={{ borderRadius: 3, flex: 1, minWidth: 420 }}
-        >
-          <Box sx={{ p: 2, pb: 0 }}>
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              {clienteSel ? `Órdenes de ${clienteSel.nombre}` : 'Selecciona un cliente'}
-            </Typography>
-            {clienteSel && (
-              <Typography variant="body2" color="text.secondary">
-                {clienteSel.telefono} — Total gastado: Q {clienteSel.total.toFixed(2)}
-              </Typography>
-            )}
-            {clienteSel && (
-              <Typography variant="body2" color="text.secondary">
-                {clienteSel.email ? `Email: ${clienteSel.email}` : 'Email: —'}
-              </Typography>
-            )}
-            {clienteSel && (
-              <Typography variant="body2" color="text.secondary">
-                {clienteSel.nit ? `NIT: ${clienteSel.nit}` : 'NIT: —'}
-              </Typography>
-            )}
-            {clienteSel && (
-              <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1 }}>
-                <Chip
-                  size="small"
-                  label={clienteSel.isActive ? 'Activo' : 'Inactivo'}
-                  color={clienteSel.isActive ? 'success' : 'error'}
-                  variant={clienteSel.isActive ? 'filled' : 'outlined'}
-                />
-                <Typography variant="body2" color="text.secondary">
-                  {clienteSel.membershipType} · vence {dayjs(clienteSel.membershipEnds).format('YYYY-MM-DD')}
-                </Typography>
-              </Stack>
-            )}
-          </Box>
-          <Table size="small">
-            <TableHead>
+            ))}
+            {enhancedClients.length === 0 && (
               <TableRow>
-                <TableCell>Fecha</TableCell>
-                <TableCell>No. Orden</TableCell>
-                <TableCell align="right">Total</TableCell>
+                <TableCell colSpan={6} align="center">
+                  <Typography color="text.secondary">
+                    No hay clientes con suscripción aún.
+                  </Typography>
+                </TableCell>
               </TableRow>
-            </TableHead>
-            <TableBody>
-              {ordenesCliente.map(o => (
-                <TableRow
-                  key={o.id}
-                  hover
-                  sx={{ cursor: 'pointer' }}
-                  onClick={() => setOrdenSel(o)}
-                >
-                  <TableCell>{dayjs(o.fecha).format('YYYY-MM-DD HH:mm')}</TableCell>
-                  <TableCell>{o.codigo || o.id}</TableCell>
-                  <TableCell align="right">Q {calcTotal(o.items).toFixed(2)}</TableCell>
-                </TableRow>
-              ))}
-              {clienteSel && ordenesCliente.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={3}>
-                    <Typography align="center" color="text.secondary">
-                      Este cliente no tiene órdenes
-                    </Typography>
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Stack>
+            )}
+          </TableBody>
+        </Table>
+      </TableContainer>
 
-      {/* -------- Dialog Detalle de Orden -------- */}
-      <Dialog open={!!ordenSel} onClose={() => setOrdenSel(null)} maxWidth="sm" fullWidth>
-        <DialogTitle>Orden {ordenSel?.codigo || ordenSel?.id}</DialogTitle>
+      <Dialog open={openClientDialog} onClose={() => setOpenClientDialog(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Nueva suscripción</DialogTitle>
         <DialogContent dividers>
-          <Stack spacing={1} sx={{ mb: 2 }}>
-            <Typography variant="body2" color="text.secondary">
-              Fecha:{' '}
-              {ordenSel ? dayjs(ordenSel.fecha).format('YYYY-MM-DD HH:mm') : '--'}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Cliente: {ordenSel?.cliente?.nombre} — {ordenSel?.cliente?.telefono}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Email: {ordenSel?.cliente?.email || '—'}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              NIT: {ordenSel?.cliente?.nit || '—'}
-            </Typography>
+          <Stack spacing={2}>
+            <TextField
+              label="Nombre"
+              value={clientForm.nombre}
+              onChange={(e) => setClientForm({ ...clientForm, nombre: e.target.value })}
+              fullWidth
+              required
+            />
+            <TextField
+              label="Teléfono"
+              value={clientForm.telefono}
+              onChange={(e) => setClientForm({ ...clientForm, telefono: e.target.value })}
+              fullWidth
+              required
+            />
+            <TextField
+              label="Email"
+              value={clientForm.email}
+              onChange={(e) => setClientForm({ ...clientForm, email: e.target.value })}
+              fullWidth
+            />
+            <Stack direction="row" spacing={1} alignItems="center">
+              <TextField
+                select
+                label="Plan"
+                value={clientForm.plan_id}
+                onChange={(e) => setClientForm({ ...clientForm, plan_id: Number(e.target.value) })}
+                fullWidth
+              >
+                {plans.map((plan) => (
+                  <MenuItem key={plan.id} value={plan.id}>
+                    {plan.nombre} · Q{plan.precio}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <Button variant="outlined" onClick={() => setOpenPlanDialog(true)}>
+                Nuevo plan
+              </Button>
+            </Stack>
+            <TextField
+              label="Fecha inicio"
+              type="date"
+              value={clientForm.fecha_inicio}
+              onChange={(e) => setClientForm({ ...clientForm, fecha_inicio: e.target.value })}
+              InputLabelProps={{ shrink: true }}
+              fullWidth
+            />
+            <TextField
+              select
+              label="Estado"
+              value={clientForm.estado}
+              onChange={(e) => setClientForm({ ...clientForm, estado: e.target.value })}
+              fullWidth
+            >
+              <MenuItem value="Activo">Activo</MenuItem>
+              <MenuItem value="En pausa">En pausa</MenuItem>
+              <MenuItem value="Vencido">Vencido</MenuItem>
+            </TextField>
           </Stack>
-
-          <Divider sx={{ mb: 2 }} />
-
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Producto / Servicio</TableCell>
-                <TableCell>SKU</TableCell>
-                <TableCell align="right">Precio</TableCell>
-                <TableCell align="right">Cant.</TableCell>
-                <TableCell align="right">Subtotal</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {ordenSel?.items?.map((it) => {
-                const nombre =
-                  it.nombre ||
-                  it.name ||
-                  (it.producto_id
-                    ? `Producto #${it.producto_id}`
-                    : it.servicio_id
-                    ? `Servicio #${it.servicio_id}`
-                    : `Item ${it.id}`)
-
-                const sku = it.producto.sku || ''
-
-                const precio = it.precio ?? it.price ?? it.precio_unitario ?? 0
-                const qty = it.cantidad ?? it.qty ?? 1
-                const subtotal = precio * qty
-
-                return (
-                  <TableRow key={it.id}>
-                    <TableCell>{nombre}</TableCell>
-                    <TableCell>{sku}</TableCell>
-                    <TableCell align="right">Q {precio.toFixed(2)}</TableCell>
-                    <TableCell align="right">{qty}</TableCell>
-                    <TableCell align="right">Q {subtotal.toFixed(2)}</TableCell>
-                  </TableRow>
-                )
-              })}
-              <TableRow>
-                <TableCell colSpan={4} align="right" sx={{ fontWeight: 600 }}>
-                  Total
-                </TableCell>
-                <TableCell align="right" sx={{ fontWeight: 600 }}>
-                  Q {ordenSel ? calcTotal(ordenSel.items).toFixed(2) : '0.00'}
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOrdenSel(null)}>Cerrar</Button>
+          <Button onClick={() => setOpenClientDialog(false)}>Cancelar</Button>
+          <Button
+            variant="contained"
+            onClick={handleSaveClient}
+            disabled={!clientForm.nombre.trim() || !clientForm.telefono.trim()}
+          >
+            Guardar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={openPlanDialog} onClose={() => setOpenPlanDialog(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Nuevo plan de membresía</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2}>
+            <TextField
+              label="Nombre"
+              value={planForm.nombre}
+              onChange={(e) => setPlanForm({ ...planForm, nombre: e.target.value })}
+              fullWidth
+              required
+            />
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+              <TextField
+                label="Máx. clases por semana"
+                type="number"
+                value={planForm.max_clases_por_semana}
+                onChange={(e) => setPlanForm({ ...planForm, max_clases_por_semana: e.target.value })}
+                fullWidth
+              />
+              <TextField
+                label="Máx. clases totales"
+                type="number"
+                value={planForm.max_clases_totales}
+                onChange={(e) => setPlanForm({ ...planForm, max_clases_totales: e.target.value })}
+                fullWidth
+              />
+            </Stack>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+              <TextField
+                label="Duración (días)"
+                type="number"
+                value={planForm.duracion_dias}
+                onChange={(e) => setPlanForm({ ...planForm, duracion_dias: e.target.value })}
+                fullWidth
+              />
+              <TextField
+                label="Precio"
+                type="number"
+                value={planForm.precio}
+                onChange={(e) => setPlanForm({ ...planForm, precio: e.target.value })}
+                fullWidth
+              />
+            </Stack>
+            <Divider />
+            <Typography variant="body2" color="text.secondary">
+              Los planes se crean localmente para demo; el backend aún no está conectado.
+            </Typography>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenPlanDialog(false)}>Cancelar</Button>
+          <Button
+            variant="contained"
+            onClick={handleSavePlan}
+            disabled={!planForm.nombre.trim() || !planForm.precio}
+          >
+            Guardar plan
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>
