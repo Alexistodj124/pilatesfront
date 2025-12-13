@@ -59,6 +59,22 @@ export default function Reservas() {
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [selectedSession, setSelectedSession] = React.useState(null)
   const [newBooking, setNewBooking] = React.useState({ client_id: '', membership_id: '', estado: 'Reservada' })
+  const [newClassDialogOpen, setNewClassDialogOpen] = React.useState(false)
+  const [newClassForm, setNewClassForm] = React.useState({
+    tipo: 'session', // session | recurrent
+    nombre: '',
+    fecha: dayjs().format('YYYY-MM-DD'),
+    fecha_inicio: dayjs().format('YYYY-MM-DD'),
+    fecha_fin: '',
+    dia_semana: 1,
+    hora_inicio: '08:00',
+    hora_fin: '09:00',
+    coach_id: '',
+    capacidad: 10,
+    estado: 'Programada',
+    template_id: '',
+    nota: '',
+  })
 
   const loadData = React.useCallback(async () => {
     setLoading(true)
@@ -138,6 +154,85 @@ export default function Reservas() {
     setDialogOpen(true)
   }
 
+  const handleTemplateSelect = (templateId) => {
+    const tplId = templateId ? Number(templateId) : ''
+    const tpl = tplId ? templateMap[tplId] : null
+    if (!tpl) {
+      setNewClassForm((prev) => ({ ...prev, template_id: '' }))
+      return
+    }
+    setNewClassForm((prev) => ({
+      ...prev,
+      template_id: tplId,
+      coach_id: tpl.coach_id,
+      capacidad: tpl.capacidad,
+      hora_inicio: tpl.hora_inicio?.slice(0, 5) || prev.hora_inicio,
+      hora_fin: tpl.hora_fin?.slice(0, 5) || prev.hora_fin,
+    }))
+  }
+
+  const handleSaveClass = async () => {
+    try {
+      setError('')
+      if (newClassForm.tipo === 'session') {
+        const payload = {
+          fecha: newClassForm.fecha,
+          hora_inicio: `${newClassForm.hora_inicio}:00`,
+          hora_fin: `${newClassForm.hora_fin}:00`,
+          coach_id: Number(newClassForm.coach_id),
+          capacidad: Number(newClassForm.capacidad),
+          estado: newClassForm.estado,
+          template_id: newClassForm.template_id || null,
+          nota: newClassForm.nota || null,
+        }
+        const res = await fetch(`${API_BASE_URL}/class-sessions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        if (!res.ok) throw new Error('No se pudo crear la clase')
+      } else {
+        const payload = {
+          nombre: newClassForm.nombre,
+          coach_id: Number(newClassForm.coach_id),
+          dia_semana: Number(newClassForm.dia_semana),
+          hora_inicio: `${newClassForm.hora_inicio}:00`,
+          hora_fin: `${newClassForm.hora_fin}:00`,
+          capacidad: Number(newClassForm.capacidad),
+          estado: newClassForm.estado,
+          fecha_inicio: newClassForm.fecha_inicio || null,
+          fecha_fin: newClassForm.fecha_fin || null,
+        }
+        const res = await fetch(`${API_BASE_URL}/class-templates`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        if (!res.ok) throw new Error('No se pudo crear la clase recurrente')
+      }
+      setNewClassDialogOpen(false)
+      setNewClassForm({
+        tipo: 'session',
+        nombre: '',
+        fecha: dayjs().format('YYYY-MM-DD'),
+        fecha_inicio: dayjs().format('YYYY-MM-DD'),
+        fecha_fin: '',
+        dia_semana: 1,
+        hora_inicio: '08:00',
+        hora_fin: '09:00',
+        coach_id: '',
+        capacidad: 10,
+        estado: 'Programada',
+        template_id: '',
+        nota: '',
+      })
+      loadData()
+    } catch (err) {
+      console.error(err)
+      setError('No se pudo crear la clase')
+    }
+  }
+
   const handleAddBooking = async () => {
     if (!selectedSession || !newBooking.client_id) return
     try {
@@ -186,12 +281,19 @@ export default function Reservas() {
 
   return (
     <Box>
-      <Typography variant="h4" fontWeight={700} gutterBottom>
-        Calendario de clases
-      </Typography>
-      <Typography variant="body1" color="text.secondary">
-        Reserva clases reales desde el backend. Verde indica cupos disponibles; rojo indica que la clase está completa.
-      </Typography>
+      <Stack direction={{ xs: 'column', sm: 'row' }} alignItems="center" justifyContent="space-between" spacing={2} sx={{ mb: 2 }}>
+        <Box>
+          <Typography variant="h4" fontWeight={700} gutterBottom>
+            Calendario de clases
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
+            Reserva clases reales desde el backend. Verde indica cupos disponibles; rojo indica que la clase está completa.
+          </Typography>
+        </Box>
+        <Button variant="contained" onClick={() => setNewClassDialogOpen(true)}>
+          Nueva clase
+        </Button>
+      </Stack>
 
       {error && (
         <Alert severity="error" sx={{ mt: 2, mb: 1 }}>
@@ -394,6 +496,159 @@ export default function Reservas() {
           <Button onClick={() => setDialogOpen(false)}>Cerrar</Button>
           <Button variant="contained" onClick={handleAddBooking} disabled={!newBooking.client_id}>
             Agregar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={newClassDialogOpen} onClose={() => setNewClassDialogOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Crear nueva clase</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2}>
+            <TextField
+              select
+              label="Tipo"
+              value={newClassForm.tipo}
+              onChange={(e) => setNewClassForm({ ...newClassForm, tipo: e.target.value })}
+              fullWidth
+            >
+              <MenuItem value="session">Una sola sesión</MenuItem>
+              <MenuItem value="recurrent">Recurrente (plantilla)</MenuItem>
+            </TextField>
+            <TextField
+              select
+              label="Plantilla (opcional)"
+              value={newClassForm.template_id}
+              onChange={(e) => handleTemplateSelect(e.target.value)}
+              fullWidth
+            >
+              <MenuItem value="">Sin plantilla</MenuItem>
+              {templates.map((tpl) => (
+                <MenuItem key={tpl.id} value={tpl.id}>
+                  {tpl.nombre} · día {tpl.dia_semana} · {formatTime(tpl.hora_inicio)}
+                </MenuItem>
+              ))}
+            </TextField>
+            {newClassForm.tipo === 'recurrent' && (
+              <>
+                <TextField
+                  label="Nombre de la clase"
+                  value={newClassForm.nombre}
+                  onChange={(e) => setNewClassForm({ ...newClassForm, nombre: e.target.value })}
+                  fullWidth
+                />
+                <TextField
+                  select
+                  label="Día de la semana (0=Domingo)"
+                  value={newClassForm.dia_semana}
+                  onChange={(e) => setNewClassForm({ ...newClassForm, dia_semana: Number(e.target.value) })}
+                  fullWidth
+                >
+                  <MenuItem value={1}>Lunes</MenuItem>
+                  <MenuItem value={2}>Martes</MenuItem>
+                  <MenuItem value={3}>Miércoles</MenuItem>
+                  <MenuItem value={4}>Jueves</MenuItem>
+                  <MenuItem value={5}>Viernes</MenuItem>
+                  <MenuItem value={6}>Sábado</MenuItem>
+                  <MenuItem value={0}>Domingo</MenuItem>
+                </TextField>
+              </>
+            )}
+            <TextField
+              label="Fecha"
+              type="date"
+              value={newClassForm.fecha}
+              onChange={(e) => setNewClassForm({ ...newClassForm, fecha: e.target.value })}
+              InputLabelProps={{ shrink: true }}
+              fullWidth
+              disabled={newClassForm.tipo === 'recurrent'}
+            />
+            {newClassForm.tipo === 'recurrent' && (
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                <TextField
+                  label="Fecha inicio"
+                  type="date"
+                  value={newClassForm.fecha_inicio}
+                  onChange={(e) => setNewClassForm({ ...newClassForm, fecha_inicio: e.target.value })}
+                  InputLabelProps={{ shrink: true }}
+                  fullWidth
+                />
+                <TextField
+                  label="Fecha fin (opcional)"
+                  type="date"
+                  value={newClassForm.fecha_fin}
+                  onChange={(e) => setNewClassForm({ ...newClassForm, fecha_fin: e.target.value })}
+                  InputLabelProps={{ shrink: true }}
+                  fullWidth
+                />
+              </Stack>
+            )}
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+              <TextField
+                label="Hora inicio"
+                type="time"
+                value={newClassForm.hora_inicio}
+                onChange={(e) => setNewClassForm({ ...newClassForm, hora_inicio: e.target.value })}
+                InputLabelProps={{ shrink: true }}
+                fullWidth
+              />
+              <TextField
+                label="Hora fin"
+                type="time"
+                value={newClassForm.hora_fin}
+                onChange={(e) => setNewClassForm({ ...newClassForm, hora_fin: e.target.value })}
+                InputLabelProps={{ shrink: true }}
+                fullWidth
+              />
+            </Stack>
+            <TextField
+              label="Coach ID"
+              value={newClassForm.coach_id}
+              onChange={(e) => setNewClassForm({ ...newClassForm, coach_id: e.target.value })}
+              fullWidth
+            />
+            <TextField
+              label="Capacidad"
+              type="number"
+              value={newClassForm.capacidad}
+              onChange={(e) => setNewClassForm({ ...newClassForm, capacidad: e.target.value })}
+              fullWidth
+            />
+            <TextField
+              select
+              label="Estado"
+              value={newClassForm.estado}
+              onChange={(e) => setNewClassForm({ ...newClassForm, estado: e.target.value })}
+              fullWidth
+            >
+              <MenuItem value="Programada">Programada</MenuItem>
+              <MenuItem value="Cancelada">Cancelada</MenuItem>
+              <MenuItem value="Completada">Completada</MenuItem>
+            </TextField>
+            <TextField
+              label="Nota"
+              value={newClassForm.nota}
+              onChange={(e) => setNewClassForm({ ...newClassForm, nota: e.target.value })}
+              fullWidth
+              multiline
+              minRows={2}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setNewClassDialogOpen(false)}>Cancelar</Button>
+          <Button
+            variant="contained"
+            onClick={handleSaveClass}
+            disabled={
+              (newClassForm.tipo === 'session' && !newClassForm.fecha) ||
+              (newClassForm.tipo === 'recurrent' && !newClassForm.nombre) ||
+              !newClassForm.hora_inicio ||
+              !newClassForm.hora_fin ||
+              !newClassForm.coach_id ||
+              !newClassForm.capacidad
+            }
+          >
+            Crear clase
           </Button>
         </DialogActions>
       </Dialog>
