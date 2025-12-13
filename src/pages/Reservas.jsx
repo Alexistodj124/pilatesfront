@@ -16,160 +16,173 @@ import {
   IconButton,
   Stack,
   Typography,
+  MenuItem,
+  Alert,
 } from '@mui/material'
 import DeleteIcon from '@mui/icons-material/Delete'
-
-const BASE_CLASSES = [
-  { id: 'sunrise', name: 'Amanecer Power', time: '06:00', coach: 'Ana', capacity: 10 },
-  { id: 'core', name: 'Fuerza y Core', time: '08:00', coach: 'Julia', capacity: 8 },
-  { id: 'midday', name: 'Almuerzo Flow', time: '12:30', coach: 'Laura', capacity: 12 },
-  { id: 'after', name: 'After Office', time: '18:00', coach: 'María', capacity: 10 },
-  { id: 'night', name: 'Noche Suave', time: '20:00', coach: 'Pau', capacity: 6 },
-]
-
-// Marcamos qué tan llenas están las clases durante los próximos 6 días.
-const AVAILABILITY_BY_DAY = {
-  0: { sunrise: 6, core: 8, midday: 11, after: 10, night: 4 },
-  1: { sunrise: 8, core: 8, midday: 9, after: 7, night: 6 },
-  2: { sunrise: 10, core: 7, midday: 12, after: 9, night: 2 },
-  3: { sunrise: 9, core: 5, midday: 12, after: 6, night: 6 },
-  4: { sunrise: 6, core: 8, midday: 12, after: 10, night: 5 },
-  5: { sunrise: 10, core: 8, midday: 12, after: 4, night: 3 },
-}
-
-const formatDayLabel = (date) => new Intl.DateTimeFormat('es-MX', {
-  weekday: 'long',
-  month: 'short',
-  day: 'numeric',
-}).format(date)
-
-const formatShortDate = (date) => new Intl.DateTimeFormat('es-MX', {
-  month: '2-digit',
-  day: '2-digit',
-}).format(date)
+import dayjs from 'dayjs'
+import { API_BASE_URL } from '../config/api'
 
 const buildNextSixDays = () => {
   const days = []
-  const cursor = new Date()
-  cursor.setHours(0, 0, 0, 0)
-
+  let cursor = dayjs().startOf('day')
   while (days.length < 6) {
-    const isSunday = cursor.getDay() === 0
-    if (!isSunday) {
+    if (cursor.day() !== 0) {
       days.push({
         index: days.length,
-        date: new Date(cursor),
-        label: formatDayLabel(cursor),
-        shortDate: formatShortDate(cursor),
+        date: cursor,
+        label: cursor.format('dddd, DD MMM'),
+        shortDate: cursor.format('YYYY-MM-DD'),
       })
     }
-    cursor.setDate(cursor.getDate() + 1)
+    cursor = cursor.add(1, 'day')
   }
-
   return days
 }
 
-const ClassCard = ({ classInfo, booked, onClick }) => {
-  const isFull = booked >= classInfo.capacity
-  const remaining = Math.max(classInfo.capacity - booked, 0)
-  const chipLabel = isFull ? 'Llena' : `Disponible (${remaining} cupos)`
-  const backgroundColor = isFull ? '#f5d6d6' : '#d6f5e4'
-  const borderColor = isFull ? '#d32f2f' : '#2e7d32'
+const formatTime = (value) => (value ? value.slice(0, 5) : '—')
 
-  return (
-    <Box
-      sx={{
-        p: 1.5,
-        borderRadius: 2,
-        backgroundColor,
-        border: `1px solid ${borderColor}`,
-        cursor: 'pointer',
-      }}
-      onClick={onClick}
-    >
-      <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
-        <Typography variant="subtitle1" fontWeight={600}>
-          {classInfo.time} · {classInfo.name}
-        </Typography>
-        <Chip
-          size="small"
-          label={chipLabel}
-          color={isFull ? 'error' : 'success'}
-          sx={{ fontWeight: 600 }}
-        />
-      </Stack>
-      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-        Coach: {classInfo.coach} · Capacidad: {classInfo.capacity}
-      </Typography>
-    </Box>
-  )
-}
-
-export default function Ventas() {
-  const days = React.useMemo(() => buildNextSixDays(), [])
-  const initialBookings = React.useMemo(() => {
-    const map = {}
-    days.forEach((day) => {
-      map[day.index] = {}
-      BASE_CLASSES.forEach((cls) => {
-        map[day.index][cls.id] = []
-      })
-    })
-    // Ejemplos para ver la lista en acción
-    if (map[0]?.sunrise) map[0].sunrise = ['Carla', 'Luis']
-    if (map[0]?.after) map[0].after = ['Marta']
-    return map
-  }, [days])
-
-  const [bookings, setBookings] = React.useState(initialBookings)
-  const [dialogOpen, setDialogOpen] = React.useState(false)
-  const [selectedClass, setSelectedClass] = React.useState(null)
-  const [newClient, setNewClient] = React.useState('')
+export default function Reservas() {
+  const [days] = React.useState(buildNextSixDays)
   const [selectedDayIndex, setSelectedDayIndex] = React.useState(0)
   const selectedDay = days[selectedDayIndex] ?? days[0]
 
-  const selectedAttendees = React.useMemo(() => {
-    if (!selectedClass) return []
-    return bookings[selectedClass.dayIndex]?.[selectedClass.classInfo.id] ?? []
-  }, [bookings, selectedClass])
+  const [sessions, setSessions] = React.useState([])
+  const [bookings, setBookings] = React.useState([])
+  const [clients, setClients] = React.useState([])
+  const [plans, setPlans] = React.useState([])
+  const [memberships, setMemberships] = React.useState([])
+  const [templates, setTemplates] = React.useState([])
+  const [loading, setLoading] = React.useState(false)
+  const [error, setError] = React.useState('')
 
-  const handleOpenDialog = (dayIndex, classInfo) => {
-    setSelectedClass({ dayIndex, classInfo })
-    setNewClient('')
+  const [dialogOpen, setDialogOpen] = React.useState(false)
+  const [selectedSession, setSelectedSession] = React.useState(null)
+  const [newBooking, setNewBooking] = React.useState({ client_id: '', membership_id: '', estado: 'Reservada' })
+
+  const loadData = React.useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const [sessionsRes, bookingsRes, clientsRes, plansRes, membershipsRes, templatesRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/class-sessions`),
+        fetch(`${API_BASE_URL}/bookings`),
+        fetch(`${API_BASE_URL}/clients`),
+        fetch(`${API_BASE_URL}/membership-plans`),
+        fetch(`${API_BASE_URL}/memberships`),
+        fetch(`${API_BASE_URL}/class-templates`),
+      ])
+
+      if (
+        !sessionsRes.ok ||
+        !bookingsRes.ok ||
+        !clientsRes.ok ||
+        !plansRes.ok ||
+        !membershipsRes.ok ||
+        !templatesRes.ok
+      ) {
+        throw new Error('Error al cargar datos')
+      }
+
+      const [sessionsData, bookingsData, clientsData, plansData, membershipsData, templatesData] = await Promise.all([
+        sessionsRes.json(),
+        bookingsRes.json(),
+        clientsRes.json(),
+        plansRes.json(),
+        membershipsRes.json(),
+        templatesRes.json(),
+      ])
+
+      setSessions(sessionsData)
+      setBookings(bookingsData)
+      setClients(clientsData)
+      setPlans(plansData)
+      setMemberships(membershipsData)
+      setTemplates(templatesData)
+    } catch (err) {
+      console.error(err)
+      setError('No se pudieron cargar las clases o reservas')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  const sessionsForDay = React.useMemo(() => {
+    if (!selectedDay) return []
+    return sessions
+      .filter((s) => dayjs(s.fecha).isSame(selectedDay.date, 'day'))
+      .sort((a, b) => (a.hora_inicio || '').localeCompare(b.hora_inicio || ''))
+  }, [sessions, selectedDay])
+
+  const bookingsBySession = React.useMemo(() => {
+    const map = {}
+    bookings.forEach((b) => {
+      if (!map[b.session_id]) map[b.session_id] = []
+      map[b.session_id].push(b)
+    })
+    return map
+  }, [bookings])
+
+  const planMap = React.useMemo(() => Object.fromEntries(plans.map((p) => [p.id, p])), [plans])
+  const clientMap = React.useMemo(() => Object.fromEntries(clients.map((c) => [c.id, c])), [clients])
+  const membershipMap = React.useMemo(() => Object.fromEntries(memberships.map((m) => [m.id, m])), [memberships])
+  const templateMap = React.useMemo(() => Object.fromEntries(templates.map((t) => [t.id, t])), [templates])
+
+  const handleOpenDialog = (session) => {
+    setSelectedSession(session)
+    setNewBooking({ client_id: '', membership_id: '', estado: 'Reservada' })
     setDialogOpen(true)
   }
 
-  const handleAddClient = () => {
-    const name = newClient.trim()
-    if (!name || !selectedClass) return
-    setBookings((prev) => {
-      const existing = prev[selectedClass.dayIndex]?.[selectedClass.classInfo.id] ?? []
-      const updatedClass = [...existing, name]
-      return {
-        ...prev,
-        [selectedClass.dayIndex]: {
-          ...prev[selectedClass.dayIndex],
-          [selectedClass.classInfo.id]: updatedClass,
-        },
+  const handleAddBooking = async () => {
+    if (!selectedSession || !newBooking.client_id) return
+    try {
+      setError('')
+      const payload = {
+        session_id: selectedSession.id,
+        client_id: Number(newBooking.client_id),
+        membership_id: newBooking.membership_id ? Number(newBooking.membership_id) : null,
+        estado: newBooking.estado,
       }
-    })
-    setNewClient('')
+      const res = await fetch(`${API_BASE_URL}/bookings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) throw new Error('No se pudo crear la reserva')
+      await res.json()
+      setDialogOpen(false)
+      setNewBooking({ client_id: '', membership_id: '', estado: 'Reservada' })
+      loadData()
+    } catch (err) {
+      console.error(err)
+      setError('No se pudo crear la reserva')
+    }
   }
 
-  const handleDeleteClient = (index) => {
-    if (!selectedClass) return
-    setBookings((prev) => {
-      const existing = prev[selectedClass.dayIndex]?.[selectedClass.classInfo.id] ?? []
-      const updatedClass = existing.filter((_, idx) => idx !== index)
-      return {
-        ...prev,
-        [selectedClass.dayIndex]: {
-          ...prev[selectedClass.dayIndex],
-          [selectedClass.classInfo.id]: updatedClass,
-        },
-      }
-    })
+  const handleDeleteBooking = async (bookingId) => {
+    try {
+      setError('')
+      const res = await fetch(`${API_BASE_URL}/bookings/${bookingId}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('No se pudo eliminar la reserva')
+      loadData()
+    } catch (err) {
+      console.error(err)
+      setError('No se pudo eliminar la reserva')
+    }
   }
+
+  const attendees = selectedSession ? bookingsBySession[selectedSession.id] || [] : []
+  const capacityUsed = selectedSession ? attendees.length : 0
+
+  const availableMemberships = React.useMemo(
+    () => memberships.filter((m) => m.estado === 'Activa' && m.client_id === Number(newBooking.client_id)),
+    [memberships, newBooking.client_id]
+  )
 
   return (
     <Box>
@@ -177,8 +190,14 @@ export default function Ventas() {
         Calendario de clases
       </Typography>
       <Typography variant="body1" color="text.secondary">
-        Reserva tu clase de pilates en los próximos seis días. Verde indica cupos disponibles; rojo indica que la clase está completa.
+        Reserva clases reales desde el backend. Verde indica cupos disponibles; rojo indica que la clase está completa.
       </Typography>
+
+      {error && (
+        <Alert severity="error" sx={{ mt: 2, mb: 1 }}>
+          {error}
+        </Alert>
+      )}
 
       <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 2, mb: 1 }}>
         <Box sx={{ width: 14, height: 14, borderRadius: 0.8, backgroundColor: '#d6f5e4', border: '1px solid #2e7d32' }} />
@@ -220,7 +239,7 @@ export default function Ventas() {
           <Stack spacing={1.5}>
             <Box>
               <Typography variant="subtitle2" color="text.secondary">
-                Día {selectedDay.index + 1} · {selectedDay.shortDate}
+                {selectedDay.shortDate}
               </Typography>
               <Typography variant="h6" fontWeight={700}>
                 {selectedDay.label}
@@ -230,14 +249,50 @@ export default function Ventas() {
             <Divider />
 
             <Stack spacing={1.5}>
-              {BASE_CLASSES.map((classInfo) => (
-                <ClassCard
-                  key={classInfo.id}
-                  classInfo={classInfo}
-                  booked={AVAILABILITY_BY_DAY[selectedDay.index]?.[classInfo.id] ?? 0}
-                  onClick={() => handleOpenDialog(selectedDay.index, classInfo)}
-                />
-              ))}
+              {sessionsForDay.length === 0 && (
+                <Typography variant="body2" color="text.secondary">
+                  {loading ? 'Cargando sesiones...' : 'No hay clases para este día.'}
+                </Typography>
+              )}
+
+              {sessionsForDay.map((session) => {
+                const booked = bookingsBySession[session.id]?.length || 0
+                const isFull = booked >= session.capacidad
+                const template = session.template_id ? templateMap[session.template_id] : null
+                const name = template?.nombre || `Clase #${session.id}`
+                const chipLabel = isFull ? 'Llena' : `Disponible (${session.capacidad - booked} cupos)`
+                const backgroundColor = isFull ? '#f5d6d6' : '#d6f5e4'
+                const borderColor = isFull ? '#d32f2f' : '#2e7d32'
+
+                return (
+                  <Box
+                    key={session.id}
+                    sx={{
+                      p: 1.5,
+                      borderRadius: 2,
+                      backgroundColor,
+                      border: `1px solid ${borderColor}`,
+                      cursor: 'pointer',
+                    }}
+                    onClick={() => handleOpenDialog(session)}
+                  >
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
+                      <Typography variant="subtitle1" fontWeight={600}>
+                        {formatTime(session.hora_inicio)} · {name}
+                      </Typography>
+                      <Chip
+                        size="small"
+                        label={chipLabel}
+                        color={isFull ? 'error' : 'success'}
+                        sx={{ fontWeight: 600 }}
+                      />
+                    </Stack>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      Coach ID: {session.coach_id} · Capacidad: {session.capacidad}
+                    </Typography>
+                  </Box>
+                )
+              })}
             </Stack>
           </Stack>
         </Paper>
@@ -250,56 +305,96 @@ export default function Ventas() {
         maxWidth="sm"
       >
         <DialogTitle>
-          {selectedClass
-            ? `${selectedClass.classInfo.name} · ${selectedClass.classInfo.time}`
+          {selectedSession
+            ? `${formatTime(selectedSession.hora_inicio)} · ${selectedSession.template_id ? templateMap[selectedSession.template_id]?.nombre : 'Clase'}`
             : 'Clase'}
         </DialogTitle>
         <DialogContent dividers>
-          {selectedClass && (
+          {selectedSession && (
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Día {selectedClass.dayIndex + 1}: {days[selectedClass.dayIndex]?.label}
+              Fecha: {dayjs(selectedSession.fecha).format('YYYY-MM-DD')} · Coach ID: {selectedSession.coach_id}
             </Typography>
           )}
 
-          <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+          <Stack spacing={2} sx={{ mb: 2 }}>
             <TextField
+              select
+              label="Cliente"
+              value={newBooking.client_id}
+              onChange={(e) => setNewBooking({ ...newBooking, client_id: e.target.value, membership_id: '' })}
               fullWidth
-              label="Nombre del cliente"
-              value={newClient}
-              onChange={(e) => setNewClient(e.target.value)}
-              size="small"
-            />
-            <Button variant="contained" onClick={handleAddClient} disabled={!newClient.trim()}>
-              Agregar
-            </Button>
+            >
+              {clients.map((c) => (
+                <MenuItem key={c.id} value={c.id}>
+                  {c.nombre} ({c.telefono})
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              select
+              label="Membresía (opcional)"
+              value={newBooking.membership_id}
+              onChange={(e) => setNewBooking({ ...newBooking, membership_id: e.target.value })}
+              fullWidth
+              disabled={!newBooking.client_id || availableMemberships.length === 0}
+              helperText={!newBooking.client_id ? 'Selecciona cliente para ver membresías' : ''}
+            >
+              {availableMemberships.map((m) => {
+                const plan = planMap[m.plan_id]
+                return (
+                  <MenuItem key={m.id} value={m.id}>
+                    {plan?.nombre || 'Plan'} · vence {dayjs(m.fecha_fin).format('YYYY-MM-DD')}
+                  </MenuItem>
+                )
+              })}
+              <MenuItem value="">
+                Sin membresía
+              </MenuItem>
+            </TextField>
           </Stack>
 
           <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>
             Clientes en esta clase
           </Typography>
-          {selectedAttendees.length === 0 ? (
+          {attendees.length === 0 ? (
             <Typography variant="body2" color="text.secondary">
               Sin clientes aún.
             </Typography>
           ) : (
             <List dense>
-              {selectedAttendees.map((client, idx) => (
-                <ListItem
-                  key={`${client}-${idx}`}
-                  secondaryAction={(
-                    <IconButton edge="end" aria-label="delete" onClick={() => handleDeleteClient(idx)}>
-                      <DeleteIcon />
-                    </IconButton>
-                  )}
-                >
-                  <ListItemText primary={client} />
-                </ListItem>
-              ))}
+              {attendees.map((booking) => {
+                const client = clientMap[booking.client_id]
+                const membership = booking.membership_id ? membershipMap[booking.membership_id] : null
+                const plan = membership ? planMap[membership.plan_id] : null
+                return (
+                  <ListItem
+                    key={booking.id}
+                    secondaryAction={(
+                      <IconButton edge="end" aria-label="delete" onClick={() => handleDeleteBooking(booking.id)}>
+                        <DeleteIcon />
+                      </IconButton>
+                    )}
+                  >
+                    <ListItemText
+                      primary={client ? client.nombre : `Cliente ${booking.client_id}`}
+                      secondary={
+                        <>
+                          Estado: {booking.estado}
+                          {membership && plan ? ` · ${plan.nombre}` : ''}
+                        </>
+                      }
+                    />
+                  </ListItem>
+                )
+              })}
             </List>
           )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDialogOpen(false)}>Cerrar</Button>
+          <Button variant="contained" onClick={handleAddBooking} disabled={!newBooking.client_id}>
+            Agregar
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>
