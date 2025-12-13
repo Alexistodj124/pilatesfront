@@ -35,6 +35,8 @@ export default function Suscripciones() {
 
   const [openClientDialog, setOpenClientDialog] = React.useState(false)
   const [openPlanDialog, setOpenPlanDialog] = React.useState(false)
+  const [openEditDialog, setOpenEditDialog] = React.useState(false)
+  const [editTarget, setEditTarget] = React.useState(null)
 
   const [clientForm, setClientForm] = React.useState({
     nombre: '',
@@ -214,6 +216,96 @@ export default function Suscripciones() {
     })
   }, [clients, membershipByClient, planMap])
 
+  const [editClientForm, setEditClientForm] = React.useState({
+    id: null,
+    nombre: '',
+    telefono: '',
+    email: '',
+    activo: true,
+  })
+
+  const [editMembershipForm, setEditMembershipForm] = React.useState({
+    id: null,
+    plan_id: '',
+    fecha_inicio: '',
+    fecha_fin: '',
+    estado: 'Activo',
+    clases_usadas: 0,
+  })
+
+  const handleOpenEdit = (client) => {
+    setEditTarget(client)
+    setEditClientForm({
+      id: client.id,
+      nombre: client.nombre || '',
+      telefono: client.telefono || '',
+      email: client.email || '',
+      activo: client.activo ?? true,
+    })
+
+    if (client.membership) {
+      setEditMembershipForm({
+        id: client.membership.id,
+        plan_id: client.membership.plan_id,
+        fecha_inicio: dayjs(client.membership.fecha_inicio).format('YYYY-MM-DD'),
+        fecha_fin: dayjs(client.membership.fecha_fin).format('YYYY-MM-DD'),
+        estado: client.membership.estado || 'Activo',
+        clases_usadas: client.membership.clases_usadas ?? 0,
+      })
+    } else {
+      setEditMembershipForm({
+        id: null,
+        plan_id: plans[0]?.id || '',
+        fecha_inicio: dayjs().format('YYYY-MM-DD'),
+        fecha_fin: dayjs().format('YYYY-MM-DD'),
+        estado: 'Activo',
+        clases_usadas: 0,
+      })
+    }
+    setOpenEditDialog(true)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editTarget) return
+    try {
+      setError('')
+      const clientPayload = {
+        nombre: editClientForm.nombre,
+        telefono: editClientForm.telefono,
+        email: editClientForm.email,
+        activo: editClientForm.activo,
+      }
+      const resClient = await fetch(`${API_BASE_URL}/clients/${editClientForm.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(clientPayload),
+      })
+      if (!resClient.ok) throw new Error('No se pudo actualizar el cliente')
+
+      if (editMembershipForm.id) {
+        const resMembership = await fetch(`${API_BASE_URL}/memberships/${editMembershipForm.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            plan_id: editMembershipForm.plan_id,
+            fecha_inicio: editMembershipForm.fecha_inicio,
+            fecha_fin: editMembershipForm.fecha_fin,
+            estado: editMembershipForm.estado,
+            clases_usadas: Number(editMembershipForm.clases_usadas) || 0,
+          }),
+        })
+        if (!resMembership.ok) throw new Error('No se pudo actualizar la membresía')
+      }
+
+      setOpenEditDialog(false)
+      setEditTarget(null)
+      loadData()
+    } catch (err) {
+      console.error(err)
+      setError('No se pudo actualizar el cliente o su membresía')
+    }
+  }
+
   return (
     <Box sx={{ maxWidth: 1200, mx: 'auto', mt: 3 }}>
       <Stack direction={{ xs: 'column', sm: 'row' }} alignItems="center" justifyContent="space-between" spacing={2} sx={{ mb: 2 }}>
@@ -264,7 +356,7 @@ export default function Suscripciones() {
           </TableHead>
           <TableBody>
             {enhancedClients.map((c) => (
-              <TableRow key={c.id} hover>
+              <TableRow key={c.id} hover sx={{ cursor: 'pointer' }} onClick={() => handleOpenEdit(c)}>
                 <TableCell>{c.nombre}</TableCell>
                 <TableCell>{c.telefono}</TableCell>
                 <TableCell>{c.planName}</TableCell>
@@ -429,6 +521,121 @@ export default function Suscripciones() {
             disabled={!planForm.nombre.trim() || !planForm.precio}
           >
             Guardar plan
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={openEditDialog} onClose={() => setOpenEditDialog(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Editar cliente y membresía</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2}>
+            <Typography variant="subtitle1" fontWeight={700}>
+              Datos del cliente
+            </Typography>
+            <TextField
+              label="Nombre"
+              value={editClientForm.nombre}
+              onChange={(e) => setEditClientForm({ ...editClientForm, nombre: e.target.value })}
+              fullWidth
+              required
+            />
+            <TextField
+              label="Teléfono"
+              value={editClientForm.telefono}
+              onChange={(e) => setEditClientForm({ ...editClientForm, telefono: e.target.value })}
+              fullWidth
+              required
+            />
+            <TextField
+              label="Email"
+              value={editClientForm.email}
+              onChange={(e) => setEditClientForm({ ...editClientForm, email: e.target.value })}
+              fullWidth
+            />
+            <TextField
+              select
+              label="Activo"
+              value={editClientForm.activo ? 'true' : 'false'}
+              onChange={(e) => setEditClientForm({ ...editClientForm, activo: e.target.value === 'true' })}
+              fullWidth
+            >
+              <MenuItem value="true">Activo</MenuItem>
+              <MenuItem value="false">Inactivo</MenuItem>
+            </TextField>
+
+            <Divider />
+            <Typography variant="subtitle1" fontWeight={700}>
+              Membresía
+            </Typography>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <TextField
+                select
+                label="Plan"
+                value={editMembershipForm.plan_id}
+                onChange={(e) => setEditMembershipForm({ ...editMembershipForm, plan_id: Number(e.target.value) })}
+                fullWidth
+                disabled={!editMembershipForm.id}
+              >
+                {plans.map((plan) => (
+                  <MenuItem key={plan.id} value={plan.id}>
+                    {plan.nombre} · Q{plan.precio}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Stack>
+            <TextField
+              label="Fecha inicio"
+              type="date"
+              value={editMembershipForm.fecha_inicio}
+              onChange={(e) => setEditMembershipForm({ ...editMembershipForm, fecha_inicio: e.target.value })}
+              InputLabelProps={{ shrink: true }}
+              fullWidth
+              disabled={!editMembershipForm.id}
+            />
+            <TextField
+              label="Fecha fin"
+              type="date"
+              value={editMembershipForm.fecha_fin}
+              onChange={(e) => setEditMembershipForm({ ...editMembershipForm, fecha_fin: e.target.value })}
+              InputLabelProps={{ shrink: true }}
+              fullWidth
+              disabled={!editMembershipForm.id}
+            />
+            <TextField
+              select
+              label="Estado"
+              value={editMembershipForm.estado}
+              onChange={(e) => setEditMembershipForm({ ...editMembershipForm, estado: e.target.value })}
+              fullWidth
+              disabled={!editMembershipForm.id}
+            >
+              <MenuItem value="Activo">Activo</MenuItem>
+              <MenuItem value="En pausa">En pausa</MenuItem>
+              <MenuItem value="Vencido">Vencido</MenuItem>
+            </TextField>
+            <TextField
+              label="Clases usadas"
+              type="number"
+              value={editMembershipForm.clases_usadas}
+              onChange={(e) => setEditMembershipForm({ ...editMembershipForm, clases_usadas: e.target.value })}
+              fullWidth
+              disabled={!editMembershipForm.id}
+            />
+            {!editMembershipForm.id && (
+              <Alert severity="info">
+                Este cliente no tiene membresía creada. Usa el formulario de “Agregar cliente” para crear una nueva.
+              </Alert>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenEditDialog(false)}>Cancelar</Button>
+          <Button
+            variant="contained"
+            onClick={handleSaveEdit}
+            disabled={!editClientForm.nombre.trim() || !editClientForm.telefono.trim()}
+          >
+            Guardar cambios
           </Button>
         </DialogActions>
       </Dialog>
