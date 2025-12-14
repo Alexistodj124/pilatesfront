@@ -18,8 +18,10 @@ import {
   Typography,
   MenuItem,
   Alert,
+  InputAdornment,
 } from '@mui/material'
 import DeleteIcon from '@mui/icons-material/Delete'
+import AddIcon from '@mui/icons-material/Add'
 import dayjs from 'dayjs'
 import { API_BASE_URL } from '../config/api'
 
@@ -53,8 +55,10 @@ export default function Reservas() {
   const [plans, setPlans] = React.useState([])
   const [memberships, setMemberships] = React.useState([])
   const [templates, setTemplates] = React.useState([])
+  const [coaches, setCoaches] = React.useState([])
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState('')
+  const [generating, setGenerating] = React.useState(false)
 
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [selectedSession, setSelectedSession] = React.useState(null)
@@ -65,7 +69,6 @@ export default function Reservas() {
     nombre: '',
     fecha: dayjs().format('YYYY-MM-DD'),
     fecha_inicio: dayjs().format('YYYY-MM-DD'),
-    fecha_fin: '',
     dia_semana: 1,
     hora_inicio: '08:00',
     hora_fin: '09:00',
@@ -75,18 +78,77 @@ export default function Reservas() {
     template_id: '',
     nota: '',
   })
+  const [newCoachDialogOpen, setNewCoachDialogOpen] = React.useState(false)
+  const [newCoachForm, setNewCoachForm] = React.useState({ nombre: '', telefono: '' })
+  const handleOpenNewClass = () => {
+    setNewClassForm((prev) => ({
+      ...prev,
+      fecha: (selectedDay?.shortDate) || dayjs().format('YYYY-MM-DD'),
+    }))
+    setNewClassDialogOpen(true)
+  }
+
+  const handleGenerateSessionsForDay = async () => {
+    if (!selectedDay) return
+    const dateStr = selectedDay.date.format('YYYY-MM-DD')
+    const dayNumber = selectedDay.date.day() // 0=Domingo
+    const templatesForDay = templates.filter((tpl) => {
+      const active = typeof tpl.estado === 'string' ? tpl.estado.toLowerCase().includes('act') : true
+      return Number(tpl.dia_semana) === dayNumber && active
+    })
+
+    // Excluir sesiones ya generadas para ese template en esa fecha
+    const existingByTemplate = new Set(
+      sessions
+        .filter((s) => dayjs(s.fecha).isSame(dateStr, 'day') && s.template_id)
+        .map((s) => s.template_id)
+    )
+    const pending = templatesForDay.filter((tpl) => !existingByTemplate.has(tpl.id))
+    if (pending.length === 0) return
+
+    setGenerating(true)
+    setError('')
+    try {
+      await Promise.all(
+        pending.map((tpl) => {
+          const payload = {
+            template_id: tpl.id,
+            fecha: dateStr,
+            hora_inicio: tpl.hora_inicio,
+            hora_fin: tpl.hora_fin,
+            coach_id: tpl.coach_id,
+            capacidad: tpl.capacidad,
+            estado: 'Programada',
+            nota: null,
+          }
+          return fetch(`${API_BASE_URL}/class-sessions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+        })
+      )
+      loadData()
+    } catch (err) {
+      console.error(err)
+      setError('No se pudieron generar sesiones desde plantillas')
+    } finally {
+      setGenerating(false)
+    }
+  }
 
   const loadData = React.useCallback(async () => {
     setLoading(true)
     setError('')
     try {
-      const [sessionsRes, bookingsRes, clientsRes, plansRes, membershipsRes, templatesRes] = await Promise.all([
+      const [sessionsRes, bookingsRes, clientsRes, plansRes, membershipsRes, templatesRes, coachesRes] = await Promise.all([
         fetch(`${API_BASE_URL}/class-sessions`),
         fetch(`${API_BASE_URL}/bookings`),
         fetch(`${API_BASE_URL}/clients`),
         fetch(`${API_BASE_URL}/membership-plans`),
         fetch(`${API_BASE_URL}/memberships`),
         fetch(`${API_BASE_URL}/class-templates`),
+        fetch(`${API_BASE_URL}/coaches`),
       ])
 
       if (
@@ -95,18 +157,20 @@ export default function Reservas() {
         !clientsRes.ok ||
         !plansRes.ok ||
         !membershipsRes.ok ||
-        !templatesRes.ok
+        !templatesRes.ok ||
+        !coachesRes.ok
       ) {
         throw new Error('Error al cargar datos')
       }
 
-      const [sessionsData, bookingsData, clientsData, plansData, membershipsData, templatesData] = await Promise.all([
+      const [sessionsData, bookingsData, clientsData, plansData, membershipsData, templatesData, coachesData] = await Promise.all([
         sessionsRes.json(),
         bookingsRes.json(),
         clientsRes.json(),
         plansRes.json(),
         membershipsRes.json(),
         templatesRes.json(),
+        coachesRes.json(),
       ])
 
       setSessions(sessionsData)
@@ -115,6 +179,7 @@ export default function Reservas() {
       setPlans(plansData)
       setMemberships(membershipsData)
       setTemplates(templatesData)
+      setCoaches(coachesData)
     } catch (err) {
       console.error(err)
       setError('No se pudieron cargar las clases o reservas')
@@ -147,6 +212,7 @@ export default function Reservas() {
   const clientMap = React.useMemo(() => Object.fromEntries(clients.map((c) => [c.id, c])), [clients])
   const membershipMap = React.useMemo(() => Object.fromEntries(memberships.map((m) => [m.id, m])), [memberships])
   const templateMap = React.useMemo(() => Object.fromEntries(templates.map((t) => [t.id, t])), [templates])
+  const coachMap = React.useMemo(() => Object.fromEntries(coaches.map((c) => [c.id, c])), [coaches])
 
   const handleOpenDialog = (session) => {
     setSelectedSession(session)
@@ -201,7 +267,6 @@ export default function Reservas() {
           capacidad: Number(newClassForm.capacidad),
           estado: newClassForm.estado,
           fecha_inicio: newClassForm.fecha_inicio || null,
-          fecha_fin: newClassForm.fecha_fin || null,
         }
         const res = await fetch(`${API_BASE_URL}/class-templates`, {
           method: 'POST',
@@ -216,7 +281,6 @@ export default function Reservas() {
         nombre: '',
         fecha: dayjs().format('YYYY-MM-DD'),
         fecha_inicio: dayjs().format('YYYY-MM-DD'),
-        fecha_fin: '',
         dia_semana: 1,
         hora_inicio: '08:00',
         hora_fin: '09:00',
@@ -279,6 +343,25 @@ export default function Reservas() {
     [memberships, newBooking.client_id]
   )
 
+  const handleAddCoach = async () => {
+    try {
+      if (!newCoachForm.nombre.trim()) return
+      setError('')
+      const res = await fetch(`${API_BASE_URL}/coaches`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre: newCoachForm.nombre, telefono: newCoachForm.telefono }),
+      })
+      if (!res.ok) throw new Error('No se pudo crear coach')
+      setNewCoachDialogOpen(false)
+      setNewCoachForm({ nombre: '', telefono: '' })
+      loadData()
+    } catch (err) {
+      console.error(err)
+      setError('No se pudo crear el coach')
+    }
+  }
+
   return (
     <Box>
       <Stack direction={{ xs: 'column', sm: 'row' }} alignItems="center" justifyContent="space-between" spacing={2} sx={{ mb: 2 }}>
@@ -290,7 +373,7 @@ export default function Reservas() {
             Reserva clases reales desde el backend. Verde indica cupos disponibles; rojo indica que la clase está completa.
           </Typography>
         </Box>
-        <Button variant="contained" onClick={() => setNewClassDialogOpen(true)}>
+        <Button variant="contained" onClick={handleOpenNewClass}>
           Nueva clase
         </Button>
       </Stack>
@@ -390,7 +473,7 @@ export default function Reservas() {
                       />
                     </Stack>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                      Coach ID: {session.coach_id} · Capacidad: {session.capacidad}
+                      Coach: {coachMap[session.coach_id]?.nombre || `ID ${session.coach_id}`} · Capacidad: {session.capacidad}
                     </Typography>
                   </Box>
                 )
@@ -572,14 +655,6 @@ export default function Reservas() {
                   InputLabelProps={{ shrink: true }}
                   fullWidth
                 />
-                <TextField
-                  label="Fecha fin (opcional)"
-                  type="date"
-                  value={newClassForm.fecha_fin}
-                  onChange={(e) => setNewClassForm({ ...newClassForm, fecha_fin: e.target.value })}
-                  InputLabelProps={{ shrink: true }}
-                  fullWidth
-                />
               </Stack>
             )}
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
@@ -601,11 +676,27 @@ export default function Reservas() {
               />
             </Stack>
             <TextField
-              label="Coach ID"
+              select
+              label="Coach"
               value={newClassForm.coach_id}
               onChange={(e) => setNewClassForm({ ...newClassForm, coach_id: e.target.value })}
               fullWidth
-            />
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton size="small" onClick={() => setNewCoachDialogOpen(true)}>
+                      <AddIcon fontSize="small" />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+            >
+              {coaches.map((coach) => (
+                <MenuItem key={coach.id} value={coach.id}>
+                  {coach.nombre}
+                </MenuItem>
+              ))}
+            </TextField>
             <TextField
               label="Capacidad"
               type="number"
@@ -649,6 +740,32 @@ export default function Reservas() {
             }
           >
             Crear clase
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={newCoachDialogOpen} onClose={() => setNewCoachDialogOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>Nuevo coach</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2}>
+            <TextField
+              label="Nombre"
+              value={newCoachForm.nombre}
+              onChange={(e) => setNewCoachForm({ ...newCoachForm, nombre: e.target.value })}
+              fullWidth
+            />
+            <TextField
+              label="Teléfono"
+              value={newCoachForm.telefono}
+              onChange={(e) => setNewCoachForm({ ...newCoachForm, telefono: e.target.value })}
+              fullWidth
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setNewCoachDialogOpen(false)}>Cancelar</Button>
+          <Button variant="contained" onClick={handleAddCoach} disabled={!newCoachForm.nombre.trim() || !newCoachForm.telefono.trim()}>
+            Guardar
           </Button>
         </DialogActions>
       </Dialog>
