@@ -93,7 +93,8 @@ export default function Reservas() {
     const dateStr = selectedDay.date.format('YYYY-MM-DD')
     const dayNumber = selectedDay.date.day() // 0=Domingo
     const templatesForDay = templates.filter((tpl) => {
-      const active = typeof tpl.estado === 'string' ? tpl.estado.toLowerCase().includes('act') : true
+      const estado = (tpl.estado || '').toString().toLowerCase()
+      const active = estado.includes('act') || estado.includes('prog')
       return Number(tpl.dia_semana) === dayNumber && active
     })
 
@@ -104,13 +105,18 @@ export default function Reservas() {
         .map((s) => s.template_id)
     )
     const pending = templatesForDay.filter((tpl) => !existingByTemplate.has(tpl.id))
+    console.log('[Generar sesiones] fecha', dateStr, 'día', dayNumber, {
+      templatesForDay,
+      existingByTemplate: Array.from(existingByTemplate),
+      pending,
+    })
     if (pending.length === 0) return
 
     setGenerating(true)
     setError('')
     try {
-      await Promise.all(
-        pending.map((tpl) => {
+      const responses = await Promise.all(
+        pending.map(async (tpl) => {
           const payload = {
             template_id: tpl.id,
             fecha: dateStr,
@@ -121,13 +127,21 @@ export default function Reservas() {
             estado: 'Programada',
             nota: null,
           }
-          return fetch(`${API_BASE_URL}/class-sessions`, {
+          console.log('[Generar sesiones] creando', payload)
+          const res = await fetch(`${API_BASE_URL}/class-sessions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
           })
+          const text = await res.text()
+          if (!res.ok) {
+            console.error('[Generar sesiones] error', res.status, text)
+            throw new Error(text || 'Error creando sesión')
+          }
+          return text
         })
       )
+      console.log('[Generar sesiones] respuestas', responses)
       loadData()
     } catch (err) {
       console.error(err)
@@ -373,9 +387,14 @@ export default function Reservas() {
             Reserva clases reales desde el backend. Verde indica cupos disponibles; rojo indica que la clase está completa.
           </Typography>
         </Box>
-        <Button variant="contained" onClick={handleOpenNewClass}>
-          Nueva clase
-        </Button>
+        <Stack direction="row" spacing={1}>
+          <Button variant="outlined" onClick={handleGenerateSessionsForDay} disabled={generating}>
+            Generar del plan
+          </Button>
+          <Button variant="contained" onClick={handleOpenNewClass}>
+            Nueva clase
+          </Button>
+        </Stack>
       </Stack>
 
       {error && (
