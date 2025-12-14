@@ -12,55 +12,127 @@ import {
   List,
   ListItem,
   ListItemText,
-  ListItemIcon,
   Divider,
+  Alert,
+  Button,
 } from '@mui/material'
-
-const CLASSES = [
-  { id: 'sunrise', name: 'Amanecer Power', time: '06:00', coach: 'Ana' },
-  { id: 'core', name: 'Fuerza y Core', time: '08:00', coach: 'Julia' },
-  { id: 'midday', name: 'Almuerzo Flow', time: '12:30', coach: 'Laura' },
-  { id: 'after', name: 'After Office', time: '18:00', coach: 'María' },
-  { id: 'night', name: 'Noche Suave', time: '20:00', coach: 'Pau' },
-]
-
-// Reservas ficticias por clase para demo
-const MOCK_RESERVATIONS = {
-  sunrise: ['Carla Pérez', 'Luis Gómez', 'Ana Martínez'],
-  core: ['María López', 'Lucía Herrera'],
-  midday: ['Paty Soto', 'Luis Gómez'],
-  after: ['Marta Ruiz', 'Paola Díaz', 'María López'],
-  night: ['Sofía Méndez'],
-}
+import dayjs from 'dayjs'
+import { API_BASE_URL } from '../config/api'
 
 export default function Asistencias() {
-  const [selectedClass, setSelectedClass] = React.useState(CLASSES[0].id)
-  const [attendance, setAttendance] = React.useState(() => {
-    const initial = {}
-    Object.entries(MOCK_RESERVATIONS).forEach(([classId, clients]) => {
-      initial[classId] = clients.map(() => false)
-    })
-    return initial
-  })
+  const [sessions, setSessions] = React.useState([])
+  const [bookings, setBookings] = React.useState([])
+  const [clients, setClients] = React.useState([])
+  const [selectedSessionId, setSelectedSessionId] = React.useState('')
+  const [error, setError] = React.useState('')
+  const [loading, setLoading] = React.useState(false)
+  const [saving, setSaving] = React.useState(false)
 
-  const handleToggle = (index) => {
-    setAttendance((prev) => ({
-      ...prev,
-      [selectedClass]: prev[selectedClass].map((val, idx) => (idx === index ? !val : val)),
-    }))
+  const loadData = React.useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const [sessionsRes, bookingsRes, clientsRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/class-sessions`),
+        fetch(`${API_BASE_URL}/bookings`),
+        fetch(`${API_BASE_URL}/clients`),
+      ])
+      if (!sessionsRes.ok || !bookingsRes.ok || !clientsRes.ok) {
+        throw new Error('Error al cargar asistencia')
+      }
+      const [sessionsData, bookingsData, clientsData] = await Promise.all([
+        sessionsRes.json(),
+        bookingsRes.json(),
+        clientsRes.json(),
+      ])
+      setSessions(sessionsData)
+      setBookings(bookingsData)
+      setClients(clientsData)
+
+      if (!selectedSessionId && sessionsData.length > 0) {
+        setSelectedSessionId(sessionsData[0].id)
+      }
+    } catch (err) {
+      console.error(err)
+      setError('No se pudo cargar la información de asistencia')
+    } finally {
+      setLoading(false)
+    }
+  }, [selectedSessionId])
+
+  React.useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  const clientMap = React.useMemo(() => Object.fromEntries(clients.map((c) => [c.id, c])), [clients])
+  const bookingsBySession = React.useMemo(() => {
+    const map = {}
+    bookings.forEach((b) => {
+      if (!map[b.session_id]) map[b.session_id] = []
+      map[b.session_id].push(b)
+    })
+    return map
+  }, [bookings])
+
+  const selectedSession = sessions.find((s) => s.id === selectedSessionId)
+  const sessionBookings = bookingsBySession[selectedSessionId] || []
+
+  const sessionLabel = (session) => {
+    if (!session) return 'Clase'
+    const date = session.fecha ? dayjs(session.fecha).format('YYYY-MM-DD') : ''
+    const time = session.hora_inicio ? session.hora_inicio.slice(0, 5) : ''
+    return `${date} · ${time} · #${session.id}`
   }
 
-  const reservations = MOCK_RESERVATIONS[selectedClass] || []
-  const classInfo = CLASSES.find((c) => c.id === selectedClass)
+  const handleToggleAttendance = async (booking) => {
+    try {
+      setSaving(true)
+      const payload = {
+        asistio: !booking.asistio,
+        check_in_at: !booking.asistio ? new Date().toISOString() : null,
+      }
+      const res = await fetch(`${API_BASE_URL}/bookings/${booking.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const text = await res.text()
+      if (!res.ok) {
+        throw new Error(text || 'No se pudo actualizar asistencia')
+      }
+      // Optimistic update
+      setBookings((prev) =>
+        prev.map((b) => (b.id === booking.id ? { ...b, asistio: !booking.asistio, check_in_at: payload.check_in_at } : b))
+      )
+    } catch (err) {
+      console.error(err)
+      setError('No se pudo actualizar asistencia')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <Box>
-      <Typography variant="h4" fontWeight={700} gutterBottom>
-        Asistencias
-      </Typography>
-      <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
-        Selecciona una clase para marcar asistencia de los clientes reservados.
-      </Typography>
+      <Stack direction={{ xs: 'column', sm: 'row' }} alignItems="center" justifyContent="space-between" spacing={2} sx={{ mb: 2 }}>
+        <Box>
+          <Typography variant="h4" fontWeight={700} gutterBottom>
+            Asistencias
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
+            Marca asistencia sobre las reservas de cada clase.
+          </Typography>
+        </Box>
+        <Button variant="outlined" onClick={loadData} disabled={loading}>
+          Refrescar
+        </Button>
+      </Stack>
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+      )}
 
       <Paper
         elevation={0}
@@ -75,13 +147,13 @@ export default function Asistencias() {
           <FormControl fullWidth size="small">
             <InputLabel>Clase</InputLabel>
             <Select
-              value={selectedClass}
+              value={selectedSessionId || ''}
               label="Clase"
-              onChange={(e) => setSelectedClass(e.target.value)}
+              onChange={(e) => setSelectedSessionId(e.target.value)}
             >
-              {CLASSES.map((cls) => (
-                <MenuItem key={cls.id} value={cls.id}>
-                  {cls.time} · {cls.name} ({cls.coach})
+              {sessions.map((s) => (
+                <MenuItem key={s.id} value={s.id}>
+                  {sessionLabel(s)}
                 </MenuItem>
               ))}
             </Select>
@@ -90,41 +162,39 @@ export default function Asistencias() {
           <Divider />
 
           <Typography variant="subtitle1" fontWeight={700}>
-            {classInfo ? `${classInfo.time} · ${classInfo.name}` : 'Clase'}
+            {sessionLabel(selectedSession)}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Reservas: {reservations.length}
+            Reservas: {sessionBookings.length}
           </Typography>
 
-          {reservations.length === 0 ? (
+          {sessionBookings.length === 0 ? (
             <Typography variant="body2" color="text.secondary">
               No hay clientes reservados para esta clase.
             </Typography>
           ) : (
             <List dense>
-              {reservations.map((client, idx) => (
-                <ListItem
-                  key={`${client}-${idx}`}
-                  secondaryAction={(
-                    <Checkbox
-                      edge="end"
-                      checked={attendance[selectedClass]?.[idx] || false}
-                      onChange={() => handleToggle(idx)}
+              {sessionBookings.map((booking) => {
+                const client = clientMap[booking.client_id]
+                return (
+                  <ListItem
+                    key={booking.id}
+                    secondaryAction={(
+                      <Checkbox
+                        edge="end"
+                        checked={!!booking.asistio}
+                        onChange={() => handleToggleAttendance(booking)}
+                        disabled={saving}
+                      />
+                    )}
+                  >
+                    <ListItemText
+                      primary={client ? client.nombre : `Cliente ${booking.client_id}`}
+                      secondary={`Estado reserva: ${booking.estado}`}
                     />
-                  )}
-                >
-                  <ListItemIcon>
-                    <Checkbox
-                      edge="start"
-                      checked={attendance[selectedClass]?.[idx] || false}
-                      onChange={() => handleToggle(idx)}
-                      tabIndex={-1}
-                      disableRipple
-                    />
-                  </ListItemIcon>
-                  <ListItemText primary={client} />
-                </ListItem>
-              ))}
+                  </ListItem>
+                )
+              })}
             </List>
           )}
         </Stack>
