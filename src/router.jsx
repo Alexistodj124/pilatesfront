@@ -98,7 +98,7 @@ const router = createBrowserRouter(
     },
   ],
   {
-    basename: '/marehpilates',
+    basename: '/marehpilatespage',
   }
 )
 
