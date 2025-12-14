@@ -16,6 +16,9 @@ import {
   Chip,
   Alert,
 } from '@mui/material'
+import { DateRangePicker } from '@mui/x-date-pickers-pro/DateRangePicker'
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import dayjs from 'dayjs'
 import { API_BASE_URL } from '../config/api'
 
@@ -30,9 +33,11 @@ export default function ReportesClases() {
   const [error, setError] = React.useState('')
   const [loading, setLoading] = React.useState(false)
 
+  const [range, setRange] = React.useState([
+    dayjs().subtract(30, 'day'),
+    dayjs(),
+  ])
   const [filters, setFilters] = React.useState({
-    start: dayjs().subtract(30, 'day').format('YYYY-MM-DD'),
-    end: dayjs().format('YYYY-MM-DD'),
     client: '',
     coach: '',
   })
@@ -80,8 +85,8 @@ export default function ReportesClases() {
   const templateMap = React.useMemo(() => Object.fromEntries(templates.map((t) => [t.id, t])), [templates])
 
   const filteredSessions = React.useMemo(() => {
-    const start = filters.start ? dayjs(filters.start).startOf('day') : null
-    const end = filters.end ? dayjs(filters.end).endOf('day') : null
+    const start = range[0] ? dayjs(range[0]).startOf('day') : null
+    const end = range[1] ? dayjs(range[1]).endOf('day') : null
     const clientId = filters.client ? Number(filters.client) : null
     const coachId = filters.coach ? Number(filters.coach) : null
 
@@ -152,24 +157,14 @@ export default function ReportesClases() {
         }}
       >
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-          <TextField
-            label="Desde"
-            type="date"
-            size="small"
-            value={filters.start}
-            onChange={(e) => handleFilterChange('start', e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            fullWidth
-          />
-          <TextField
-            label="Hasta"
-            type="date"
-            size="small"
-            value={filters.end}
-            onChange={(e) => handleFilterChange('end', e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            fullWidth
-          />
+          <LocalizationProvider dateAdapter={AdapterDayjs}>
+            <DateRangePicker
+              localeText={{ start: 'Inicio', end: 'Fin' }}
+              value={range}
+              onChange={(newValue) => setRange(newValue)}
+              sx={{ width: '100%' }}
+            />
+          </LocalizationProvider>
           <TextField
             select
             label="Cliente"
