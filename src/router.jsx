@@ -12,6 +12,7 @@ import Clientes from './pages/Clientes.jsx'
 import Asistencias from './pages/Asistencias.jsx'
 import Reservas from './pages/Reservas.jsx'
 import Suscripciones from './pages/Suscripciones.jsx'
+import ReportesClases from './pages/ReportesClases.jsx'
 import { RequireAuth, RequireAdmin } from './ProtectedRoutes.jsx'
 
 const router = createBrowserRouter(
@@ -81,6 +82,14 @@ const router = createBrowserRouter(
           element: (
             <RequireAdmin>
               <Clientes />
+            </RequireAdmin>
+          ),
+        },
+        {
+          path: 'reportesclases',
+          element: (
+            <RequireAdmin>
+              <ReportesClases />
             </RequireAdmin>
           ),
         },
