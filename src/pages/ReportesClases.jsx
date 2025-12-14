@@ -80,6 +80,10 @@ export default function ReportesClases() {
     loadData()
   }, [loadData])
 
+  React.useEffect(() => {
+    loadData()
+  }, [loadData, range, filters.client, filters.coach])
+
   const clientMap = React.useMemo(() => Object.fromEntries(clients.map((c) => [c.id, c])), [clients])
   const coachMap = React.useMemo(() => Object.fromEntries(coaches.map((c) => [c.id, c])), [coaches])
   const templateMap = React.useMemo(() => Object.fromEntries(templates.map((t) => [t.id, t])), [templates])
@@ -90,13 +94,13 @@ export default function ReportesClases() {
     const clientId = filters.client ? Number(filters.client) : null
     const coachId = filters.coach ? Number(filters.coach) : null
 
-    return sessions.filter((s) => {
-      const d = s.fecha ? dayjs(s.fecha) : null
-      if (!d) return false
-      if (d.isAfter(dayjs())) return false // solo clases pasadas
-      if (start && d.isBefore(start)) return false
-      if (end && d.isAfter(end)) return false
-      if (coachId && Number(s.coach_id) !== coachId) return false
+    return sessions
+      .filter((s) => {
+        const d = s.fecha ? dayjs(s.fecha) : null
+        if (!d) return false
+        if (start && d.isBefore(start)) return false
+        if (end && d.isAfter(end)) return false
+        if (coachId && Number(s.coach_id) !== coachId) return false
       if (clientId) {
         const hasClient = bookings.some(
           (b) => b.session_id === s.id && Number(b.client_id) === clientId
@@ -104,8 +108,9 @@ export default function ReportesClases() {
         if (!hasClient) return false
       }
       return true
-    })
-  }, [sessions, bookings, filters])
+      })
+      .sort((a, b) => dayjs(a.fecha).valueOf() - dayjs(b.fecha).valueOf())
+  }, [sessions, bookings, filters, range])
 
   const sessionStats = React.useMemo(() => {
     const map = {}
@@ -218,6 +223,7 @@ export default function ReportesClases() {
               <TableCell>Hora</TableCell>
               <TableCell>Clase</TableCell>
               <TableCell>Coach</TableCell>
+              <TableCell>Estado</TableCell>
               <TableCell align="right">Reservas</TableCell>
               <TableCell align="right">Asistencias</TableCell>
             </TableRow>
@@ -230,12 +236,20 @@ export default function ReportesClases() {
               const coachName = coachMap[s.coach_id]?.nombre || `ID ${s.coach_id}`
               const fecha = s.fecha ? dayjs(s.fecha).format('YYYY-MM-DD') : ''
               const hora = s.hora_inicio ? formatTime(s.hora_inicio) : ''
+              const isFuture = s.fecha ? dayjs(s.fecha).isAfter(dayjs(), 'day') : false
               return (
                 <TableRow key={s.id}>
                   <TableCell>{fecha}</TableCell>
                   <TableCell>{hora}</TableCell>
                   <TableCell>{name}</TableCell>
                   <TableCell>{coachName}</TableCell>
+                  <TableCell>
+                    {isFuture ? (
+                      <Chip label="Pendiente" size="small" color="warning" />
+                    ) : (
+                      <Chip label="Completada" size="small" color="default" />
+                    )}
+                  </TableCell>
                   <TableCell align="right">
                     <Chip label={stats.total} color="primary" size="small" />
                   </TableCell>
