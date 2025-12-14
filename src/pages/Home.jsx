@@ -59,7 +59,7 @@ export default function Home() {
 
       <Grid container spacing={3}>
         {sections.map((section) => (
-          <Grid item xs={12} md={6} key={section.title}>
+          <Grid item xs={12} key={section.title}>
             <Box
               sx={{
                 p: 2,
@@ -73,7 +73,7 @@ export default function Home() {
               </Typography>
               <Grid container spacing={2}>
                 {section.items.map((m) => (
-                  <Grid key={m.to} item xs={12}>
+                  <Grid key={m.to} item xs={12} sm={6} md={3}>
                     <Box sx={{ height: '100%' }}>
                       <ModuleCard {...m} />
                     </Box>
