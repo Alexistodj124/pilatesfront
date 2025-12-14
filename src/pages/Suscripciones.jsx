@@ -44,7 +44,7 @@ export default function Suscripciones() {
     email: '',
     plan_id: '',
     fecha_inicio: dayjs().format('YYYY-MM-DD'),
-    estado: 'Activo',
+    estado: 'Activa',
   })
 
   const [planForm, setPlanForm] = React.useState({
@@ -172,7 +172,7 @@ export default function Suscripciones() {
         email: '',
         plan_id: plans[0]?.id || '',
         fecha_inicio: dayjs().format('YYYY-MM-DD'),
-        estado: 'Activo',
+        estado: 'Activa',
       })
       loadData()
     } catch (err) {
@@ -229,7 +229,7 @@ export default function Suscripciones() {
     plan_id: '',
     fecha_inicio: '',
     fecha_fin: '',
-    estado: 'Activo',
+    estado: 'Activa',
     clases_usadas: 0,
   })
 
@@ -249,7 +249,7 @@ export default function Suscripciones() {
         plan_id: client.membership.plan_id,
         fecha_inicio: dayjs(client.membership.fecha_inicio).format('YYYY-MM-DD'),
         fecha_fin: dayjs(client.membership.fecha_fin).format('YYYY-MM-DD'),
-        estado: client.membership.estado || 'Activo',
+        estado: client.membership.estado || 'Activa',
         clases_usadas: client.membership.clases_usadas ?? 0,
       })
     } else {
@@ -258,7 +258,7 @@ export default function Suscripciones() {
         plan_id: plans[0]?.id || '',
         fecha_inicio: dayjs().format('YYYY-MM-DD'),
         fecha_fin: dayjs().format('YYYY-MM-DD'),
-        estado: 'Activo',
+        estado: 'Activa',
         clases_usadas: 0,
       })
     }
@@ -365,8 +365,8 @@ export default function Suscripciones() {
                     <Chip
                       size="small"
                       label={c.membership.estado}
-                      color={c.membership.estado === 'Activo' ? 'success' : 'warning'}
-                      variant={c.membership.estado === 'Activo' ? 'filled' : 'outlined'}
+                      color={c.membership.estado === 'Activa' ? 'success' : 'warning'}
+                      variant={c.membership.estado === 'Activa' ? 'filled' : 'outlined'}
                     />
                   ) : (
                     <Chip size="small" label="Sin membresía" variant="outlined" />
@@ -446,7 +446,7 @@ export default function Suscripciones() {
               onChange={(e) => setClientForm({ ...clientForm, estado: e.target.value })}
               fullWidth
             >
-              <MenuItem value="Activo">Activo</MenuItem>
+              <MenuItem value="Activa">Activa</MenuItem>
               <MenuItem value="En pausa">En pausa</MenuItem>
               <MenuItem value="Vencido">Vencido</MenuItem>
             </TextField>
@@ -554,13 +554,13 @@ export default function Suscripciones() {
             />
             <TextField
               select
-              label="Activo"
+              label="Activa"
               value={editClientForm.activo ? 'true' : 'false'}
               onChange={(e) => setEditClientForm({ ...editClientForm, activo: e.target.value === 'true' })}
               fullWidth
             >
-              <MenuItem value="true">Activo</MenuItem>
-              <MenuItem value="false">Inactivo</MenuItem>
+              <MenuItem value="true">Activa</MenuItem>
+              <MenuItem value="false">Inactiva</MenuItem>
             </TextField>
 
             <Divider />
@@ -609,7 +609,7 @@ export default function Suscripciones() {
               fullWidth
               disabled={!editMembershipForm.id}
             >
-              <MenuItem value="Activo">Activo</MenuItem>
+              <MenuItem value="Activa">Activa</MenuItem>
               <MenuItem value="En pausa">En pausa</MenuItem>
               <MenuItem value="Vencido">Vencido</MenuItem>
             </TextField>
