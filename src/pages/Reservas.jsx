@@ -227,6 +227,7 @@ export default function Reservas() {
   const membershipMap = React.useMemo(() => Object.fromEntries(memberships.map((m) => [m.id, m])), [memberships])
   const templateMap = React.useMemo(() => Object.fromEntries(templates.map((t) => [t.id, t])), [templates])
   const coachMap = React.useMemo(() => Object.fromEntries(coaches.map((c) => [c.id, c])), [coaches])
+  const sessionMap = React.useMemo(() => Object.fromEntries(sessions.map((s) => [s.id, s])), [sessions])
 
   const handleOpenDialog = (session) => {
     setSelectedSession(session)
@@ -321,12 +322,24 @@ export default function Reservas() {
         membership_id: newBooking.membership_id ? Number(newBooking.membership_id) : null,
         estado: newBooking.estado,
       }
+      console.log(payload);
       const res = await fetch(`${API_BASE_URL}/bookings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
-      if (!res.ok) throw new Error('No se pudo crear la reserva')
+      if (!res.ok) {
+        let msg = 'No se pudo crear la reserva'
+        try {
+          const data = await res.json()
+          msg = data?.error || data?.message || msg
+        } catch {
+          const text = await res.text()
+          msg = text || msg
+        }
+        setError(msg)
+        return
+      }
       await res.json()
       setDialogOpen(false)
       setNewBooking({ client_id: '', membership_id: '', estado: 'Reservada' })
@@ -356,6 +369,18 @@ export default function Reservas() {
     () => memberships.filter((m) => m.estado === 'Activa' && m.client_id === Number(newBooking.client_id)),
     [memberships, newBooking.client_id]
   )
+
+  const handleClientChange = (clientId) => {
+    const activeMembership = memberships.find(
+      (m) => m.estado === 'Activa' && Number(m.client_id) === Number(clientId)
+    )
+    console.log(activeMembership);
+    setNewBooking({
+      client_id: clientId,
+      membership_id: activeMembership.id,
+      estado: 'Reservada',
+    })
+  }
 
   const handleAddCoach = async () => {
     try {
@@ -389,7 +414,7 @@ export default function Reservas() {
         </Box>
         <Stack direction="row" spacing={1}>
           <Button variant="outlined" onClick={handleGenerateSessionsForDay} disabled={generating}>
-            Generar del plan
+            Generar Clases
           </Button>
           <Button variant="contained" onClick={handleOpenNewClass}>
             Nueva clase
@@ -525,7 +550,7 @@ export default function Reservas() {
               select
               label="Cliente"
               value={newBooking.client_id}
-              onChange={(e) => setNewBooking({ ...newBooking, client_id: e.target.value, membership_id: '' })}
+              onChange={(e) => handleClientChange(e.target.value)}
               fullWidth
             >
               {clients.map((c) => (
