@@ -15,7 +15,10 @@ import {
   Divider,
   Alert,
   Button,
+  InputAdornment,
+  TextField,
 } from '@mui/material'
+import EventIcon from '@mui/icons-material/Event'
 import dayjs from 'dayjs'
 import { API_BASE_URL } from '../config/api'
 
@@ -23,6 +26,8 @@ export default function Asistencias() {
   const [sessions, setSessions] = React.useState([])
   const [bookings, setBookings] = React.useState([])
   const [clients, setClients] = React.useState([])
+  const [templates, setTemplates] = React.useState([])
+  const [selectedDate, setSelectedDate] = React.useState(dayjs().startOf('day'))
   const [selectedSessionId, setSelectedSessionId] = React.useState('')
   const [error, setError] = React.useState('')
   const [loading, setLoading] = React.useState(false)
@@ -32,26 +37,25 @@ export default function Asistencias() {
     setLoading(true)
     setError('')
     try {
-      const [sessionsRes, bookingsRes, clientsRes] = await Promise.all([
+      const [sessionsRes, bookingsRes, clientsRes, templatesRes] = await Promise.all([
         fetch(`${API_BASE_URL}/class-sessions`),
         fetch(`${API_BASE_URL}/bookings`),
         fetch(`${API_BASE_URL}/clients`),
+        fetch(`${API_BASE_URL}/class-templates`),
       ])
-      if (!sessionsRes.ok || !bookingsRes.ok || !clientsRes.ok) {
+      if (!sessionsRes.ok || !bookingsRes.ok || !clientsRes.ok || !templatesRes.ok) {
         throw new Error('Error al cargar asistencia')
       }
-      const [sessionsData, bookingsData, clientsData] = await Promise.all([
+      const [sessionsData, bookingsData, clientsData, templatesData] = await Promise.all([
         sessionsRes.json(),
         bookingsRes.json(),
         clientsRes.json(),
+        templatesRes.json(),
       ])
       setSessions(sessionsData)
       setBookings(bookingsData)
       setClients(clientsData)
-
-      if (!selectedSessionId && sessionsData.length > 0) {
-        setSelectedSessionId(sessionsData[0].id)
-      }
+      setTemplates(templatesData)
     } catch (err) {
       console.error(err)
       setError('No se pudo cargar la información de asistencia')
@@ -65,6 +69,7 @@ export default function Asistencias() {
   }, [loadData])
 
   const clientMap = React.useMemo(() => Object.fromEntries(clients.map((c) => [c.id, c])), [clients])
+  const templateMap = React.useMemo(() => Object.fromEntries(templates.map((t) => [t.id, t])), [templates])
   const bookingsBySession = React.useMemo(() => {
     const map = {}
     bookings.forEach((b) => {
@@ -74,6 +79,23 @@ export default function Asistencias() {
     return map
   }, [bookings])
 
+  const sessionsForDate = React.useMemo(
+    () => sessions.filter((s) => dayjs(s.fecha).isSame(selectedDate, 'day')),
+    [sessions, selectedDate]
+  )
+
+  React.useEffect(() => {
+    if (!selectedSessionId && sessionsForDate.length > 0) {
+      setSelectedSessionId(sessionsForDate[0].id)
+    }
+    if (selectedSessionId) {
+      const stillExists = sessionsForDate.some((s) => s.id === selectedSessionId)
+      if (!stillExists) {
+        setSelectedSessionId(sessionsForDate[0]?.id || '')
+      }
+    }
+  }, [sessionsForDate, selectedSessionId])
+
   const selectedSession = sessions.find((s) => s.id === selectedSessionId)
   const sessionBookings = bookingsBySession[selectedSessionId] || []
 
@@ -81,7 +103,8 @@ export default function Asistencias() {
     if (!session) return 'Clase'
     const date = session.fecha ? dayjs(session.fecha).format('YYYY-MM-DD') : ''
     const time = session.hora_inicio ? session.hora_inicio.slice(0, 5) : ''
-    return `${date} · ${time} · #${session.id}`
+    const name = session.template_id ? templateMap[session.template_id]?.nombre : null
+    return `${date} · ${time} · ${name || 'Clase'}`
   }
 
   const handleToggleAttendance = async (booking) => {
@@ -128,6 +151,27 @@ export default function Asistencias() {
         </Button>
       </Stack>
 
+      <Stack direction="row" spacing={1} sx={{ mb: 2 }} alignItems="center">
+        <TextField
+          size="small"
+          type="date"
+          value={selectedDate.format('YYYY-MM-DD')}
+          onChange={(e) => setSelectedDate(dayjs(e.target.value))}
+          InputLabelProps={{ shrink: true }}
+          InputProps={{
+            endAdornment: (
+              <InputAdornment position="end">
+                <EventIcon />
+              </InputAdornment>
+            ),
+          }}
+          sx={{ width: 220 }}
+        />
+        <Typography variant="body2" color="text.secondary">
+          Mostrando clases del {selectedDate.format('YYYY-MM-DD')}
+        </Typography>
+      </Stack>
+
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
           {error}
@@ -151,7 +195,7 @@ export default function Asistencias() {
               label="Clase"
               onChange={(e) => setSelectedSessionId(e.target.value)}
             >
-              {sessions.map((s) => (
+              {sessionsForDate.map((s) => (
                 <MenuItem key={s.id} value={s.id}>
                   {sessionLabel(s)}
                 </MenuItem>
