@@ -162,7 +162,10 @@ export default function Asistencias() {
   )
 
   const sessionsForDate = React.useMemo(
-    () => sessions.filter((s) => dayjs(s.fecha).isSame(selectedDay?.date, 'day')),
+    () =>
+      sessions
+        .filter((s) => dayjs(s.fecha).isSame(selectedDay?.date, 'day'))
+        .filter((s) => (s.estado || '').toLowerCase() !== 'cancelada'),
     [sessions, selectedDay]
   )
 
