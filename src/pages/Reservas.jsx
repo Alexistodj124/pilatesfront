@@ -19,6 +19,7 @@ import {
   MenuItem,
   Alert,
   InputAdornment,
+  Autocomplete,
 } from '@mui/material'
 import DeleteIcon from '@mui/icons-material/Delete'
 import AddIcon from '@mui/icons-material/Add'
@@ -410,7 +411,7 @@ export default function Reservas() {
             Calendario de clases
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            Reserva clases reales desde el backend. Verde indica cupos disponibles; rojo indica que la clase está completa.
+            Verde indica cupos disponibles; rojo indica que la clase está completa.
           </Typography>
         </Box>
         <Stack direction="row" spacing={1}>
@@ -547,19 +548,28 @@ export default function Reservas() {
           )}
 
           <Stack spacing={2} sx={{ mb: 2 }}>
-            <TextField
-              select
-              label="Cliente"
-              value={newBooking.client_id}
-              onChange={(e) => handleClientChange(e.target.value)}
-              fullWidth
-            >
-              {clients.map((c) => (
-                <MenuItem key={c.id} value={c.id}>
-                  {c.nombre} ({c.telefono})
-                </MenuItem>
-              ))}
-            </TextField>
+            <Autocomplete
+              options={clients}
+              getOptionLabel={(option) => `${option.nombre || ''}${option.telefono ? ` (${option.telefono})` : ''}`}
+              filterOptions={(options, { inputValue }) => {
+                const term = inputValue.toLowerCase()
+                return options.filter(
+                  (opt) =>
+                    opt.nombre?.toLowerCase().includes(term) ||
+                    opt.telefono?.toLowerCase().includes(term)
+                )
+              }}
+              value={clients.find((c) => Number(c.id) === Number(newBooking.client_id)) || null}
+              onChange={(_e, value) => handleClientChange(value ? value.id : '')}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Cliente"
+                  placeholder="Busca por nombre o teléfono"
+                  fullWidth
+                />
+              )}
+            />
             <TextField
               select
               label="Membresía (opcional)"
