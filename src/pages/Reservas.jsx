@@ -60,6 +60,8 @@ export default function Reservas() {
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState('')
   const [generating, setGenerating] = React.useState(false)
+  const [cancelDialogOpen, setCancelDialogOpen] = React.useState(false)
+  const [cancelSaving, setCancelSaving] = React.useState(false)
 
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [selectedSession, setSelectedSession] = React.useState(null)
@@ -74,7 +76,7 @@ export default function Reservas() {
     hora_inicio: '08:00',
     hora_fin: '09:00',
     coach_id: '',
-    capacidad: 10,
+    capacidad: 8,
     estado: 'Programada',
     template_id: '',
     nota: '',
@@ -301,7 +303,7 @@ export default function Reservas() {
         hora_inicio: '08:00',
         hora_fin: '09:00',
         coach_id: '',
-        capacidad: 10,
+        capacidad: 8,
         estado: 'Programada',
         template_id: '',
         nota: '',
@@ -362,6 +364,29 @@ export default function Reservas() {
     } catch (err) {
       console.error(err)
       setError('No se pudo eliminar la reserva')
+    }
+  }
+
+  const handleConfirmCancelSession = async () => {
+    if (!selectedSession) return
+    try {
+      setCancelSaving(true)
+      setError('')
+      const res = await fetch(`${API_BASE_URL}/class-sessions/${selectedSession.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: 'Cancelada' }),
+      })
+      if (!res.ok) throw new Error('No se pudo cancelar la clase')
+      setSessions((prev) => prev.map((s) => (s.id === selectedSession.id ? { ...s, estado: 'Cancelada' } : s)))
+      setSelectedSession((prev) => (prev ? { ...prev, estado: 'Cancelada' } : prev))
+      setCancelDialogOpen(false)
+      loadData()
+    } catch (err) {
+      console.error(err)
+      setError(err.message || 'No se pudo cancelar la clase')
+    } finally {
+      setCancelSaving(false)
     }
   }
 
@@ -634,9 +659,38 @@ export default function Reservas() {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDialogOpen(false)}>Cerrar</Button>
-          <Button variant="contained" onClick={handleAddBooking} disabled={!newBooking.client_id || !newBooking.membership_id}>
-            Agregar
+          <Stack direction="row" spacing={1} sx={{ width: '100%' }} justifyContent="space-between">
+            <Button
+              color="error"
+              variant="outlined"
+              onClick={() => setCancelDialogOpen(true)}
+              disabled={!selectedSession || selectedSession.estado === 'Cancelada'}
+            >
+              Cancelar clase
+            </Button>
+            <Stack direction="row" spacing={1}>
+              <Button onClick={() => setDialogOpen(false)}>Cerrar</Button>
+              <Button variant="contained" onClick={handleAddBooking} disabled={!newBooking.client_id || !newBooking.membership_id}>
+                Agregar
+              </Button>
+            </Stack>
+          </Stack>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={cancelDialogOpen} onClose={() => setCancelDialogOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>Cancelar clase</DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2" color="text.secondary">
+            Esta acción marcará la clase como Cancelada y no se podrá revertir desde aquí. ¿Deseas continuar?
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCancelDialogOpen(false)} disabled={cancelSaving}>
+            No cancelar
+          </Button>
+          <Button variant="contained" color="error" onClick={handleConfirmCancelSession} disabled={cancelSaving}>
+            Sí, cancelar clase
           </Button>
         </DialogActions>
       </Dialog>
@@ -649,26 +703,35 @@ export default function Reservas() {
               select
               label="Tipo"
               value={newClassForm.tipo}
-              onChange={(e) => setNewClassForm({ ...newClassForm, tipo: e.target.value })}
+              onChange={(e) => {
+                const nextTipo = e.target.value
+                setNewClassForm((prev) => ({
+                  ...prev,
+                  tipo: nextTipo,
+                  template_id: nextTipo === 'session' ? prev.template_id : '',
+                }))
+              }}
               fullWidth
             >
               <MenuItem value="session">Una sola sesión</MenuItem>
               <MenuItem value="recurrent">Recurrente (plantilla)</MenuItem>
             </TextField>
-            <TextField
-              select
-              label="Plantilla (opcional)"
-              value={newClassForm.template_id}
-              onChange={(e) => handleTemplateSelect(e.target.value)}
-              fullWidth
-            >
-              <MenuItem value="">Sin plantilla</MenuItem>
-              {templates.map((tpl) => (
-                <MenuItem key={tpl.id} value={tpl.id}>
-                  {tpl.nombre} · día {tpl.dia_semana} · {formatTime(tpl.hora_inicio)}
-                </MenuItem>
-              ))}
-            </TextField>
+            {newClassForm.tipo === 'session' && (
+              <TextField
+                select
+                label="Plantilla (opcional)"
+                value={newClassForm.template_id}
+                onChange={(e) => handleTemplateSelect(e.target.value)}
+                fullWidth
+              >
+                <MenuItem value="">Sin plantilla</MenuItem>
+                {templates.map((tpl) => (
+                  <MenuItem key={tpl.id} value={tpl.id}>
+                    {tpl.nombre} · día {tpl.dia_semana} · {formatTime(tpl.hora_inicio)}
+                  </MenuItem>
+                ))}
+              </TextField>
+            )}
             {newClassForm.tipo === 'recurrent' && (
               <>
                 <TextField
