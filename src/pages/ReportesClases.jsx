@@ -32,6 +32,7 @@ export default function ReportesClases() {
   const [templates, setTemplates] = React.useState([])
   const [error, setError] = React.useState('')
   const [loading, setLoading] = React.useState(false)
+  const autoCompletingRef = React.useRef(false)
 
   const [range, setRange] = React.useState([
     dayjs().subtract(30, 'day'),
@@ -83,6 +84,42 @@ export default function ReportesClases() {
   React.useEffect(() => {
     loadData()
   }, [loadData, range, filters.client, filters.coach])
+
+  React.useEffect(() => {
+    const today = dayjs().startOf('day')
+    const pending = sessions.filter(
+      (s) => (s.estado || '').toLowerCase() === 'programada' && s.fecha && dayjs(s.fecha).isBefore(today, 'day')
+    )
+    if (pending.length === 0 || autoCompletingRef.current) return
+
+    autoCompletingRef.current = true
+    ;(async () => {
+      try {
+        await Promise.all(
+          pending.map(async (session) => {
+            const res = await fetch(`${API_BASE_URL}/class-sessions/${session.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ estado: 'Completada' }),
+            })
+            if (!res.ok) {
+              const text = await res.text()
+              throw new Error(text || 'No se pudo actualizar estado')
+            }
+          })
+        )
+        setSessions((prev) =>
+          prev.map((s) =>
+            pending.some((p) => p.id === s.id) ? { ...s, estado: 'Completada' } : s
+          )
+        )
+      } catch (err) {
+        console.error('No se pudieron completar clases pasadas', err)
+      } finally {
+        autoCompletingRef.current = false
+      }
+    })()
+  }, [sessions])
 
   const clientMap = React.useMemo(() => Object.fromEntries(clients.map((c) => [c.id, c])), [clients])
   const coachMap = React.useMemo(() => Object.fromEntries(coaches.map((c) => [c.id, c])), [coaches])
@@ -236,7 +273,24 @@ export default function ReportesClases() {
               const coachName = coachMap[s.coach_id]?.nombre || `ID ${s.coach_id}`
               const fecha = s.fecha ? dayjs(s.fecha).format('YYYY-MM-DD') : ''
               const hora = s.hora_inicio ? formatTime(s.hora_inicio) : ''
-              const isFuture = s.fecha ? dayjs(s.fecha).isAfter(dayjs(), 'day') : false
+              const estado = (s.estado || '').toLowerCase()
+              const sessionDate = s.fecha ? dayjs(s.fecha) : null
+              const isFuture = sessionDate ? sessionDate.isAfter(dayjs(), 'day') : false
+              const isPastOrToday = sessionDate ? !isFuture : false
+              let statusLabel = s.estado || '—'
+              let statusColor = 'default'
+              if (estado === 'cancelada') {
+                statusLabel = 'Cancelada'
+                statusColor = 'error'
+              } else if (estado === 'programada') {
+                if (isFuture) {
+                  statusLabel = 'Pendiente'
+                  statusColor = 'warning'
+                } else if (isPastOrToday) {
+                  statusLabel = 'Completada'
+                  statusColor = 'default'
+                }
+              }
               return (
                 <TableRow key={s.id}>
                   <TableCell>{fecha}</TableCell>
@@ -244,11 +298,7 @@ export default function ReportesClases() {
                   <TableCell>{name}</TableCell>
                   <TableCell>{coachName}</TableCell>
                   <TableCell>
-                    {isFuture ? (
-                      <Chip label="Pendiente" size="small" color="warning" />
-                    ) : (
-                      <Chip label="Completada" size="small" color="default" />
-                    )}
+                    <Chip label={statusLabel} size="small" color={statusColor} />
                   </TableCell>
                   <TableCell align="right">
                     <Chip label={stats.total} color="primary" size="small" />
