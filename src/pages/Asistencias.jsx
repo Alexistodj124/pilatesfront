@@ -15,27 +15,43 @@ import {
   Divider,
   Alert,
   Button,
-  InputAdornment,
-  TextField,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
 } from '@mui/material'
-import EventIcon from '@mui/icons-material/Event'
 import CloseIcon from '@mui/icons-material/Close'
 import dayjs from 'dayjs'
 import { API_BASE_URL } from '../config/api'
 
+const buildNextSixDays = () => {
+  const days = []
+  let cursor = dayjs().startOf('day')
+  while (days.length < 6) {
+    if (cursor.day() !== 0) {
+      days.push({
+        index: days.length,
+        date: cursor,
+        label: cursor.format('dddd, DD MMM'),
+        shortDate: cursor.format('YYYY-MM-DD'),
+      })
+    }
+    cursor = cursor.add(1, 'day')
+  }
+  return days
+}
+
 export default function Asistencias() {
   const FINE_AMOUNT = 100
+  const [days] = React.useState(buildNextSixDays)
+  const [selectedDayIndex, setSelectedDayIndex] = React.useState(0)
+  const selectedDay = days[selectedDayIndex] ?? days[0]
   const [sessions, setSessions] = React.useState([])
   const [bookings, setBookings] = React.useState([])
   const [clients, setClients] = React.useState([])
   const [memberships, setMemberships] = React.useState([])
   const [plans, setPlans] = React.useState([])
   const [templates, setTemplates] = React.useState([])
-  const [selectedDate, setSelectedDate] = React.useState(dayjs().startOf('day'))
   const [selectedSessionId, setSelectedSessionId] = React.useState('')
   const [error, setError] = React.useState('')
   const [loading, setLoading] = React.useState(false)
@@ -146,8 +162,8 @@ export default function Asistencias() {
   )
 
   const sessionsForDate = React.useMemo(
-    () => sessions.filter((s) => dayjs(s.fecha).isSame(selectedDate, 'day')),
-    [sessions, selectedDate]
+    () => sessions.filter((s) => dayjs(s.fecha).isSame(selectedDay?.date, 'day')),
+    [sessions, selectedDay]
   )
 
   React.useEffect(() => {
@@ -313,25 +329,24 @@ export default function Asistencias() {
         </Button>
       </Stack>
 
-      <Stack direction="row" spacing={1} sx={{ mb: 2 }} alignItems="center">
-        <TextField
-          size="small"
-          type="date"
-          value={selectedDate.format('YYYY-MM-DD')}
-          onChange={(e) => setSelectedDate(dayjs(e.target.value))}
-          InputLabelProps={{ shrink: true }}
-          InputProps={{
-            endAdornment: (
-              <InputAdornment position="end">
-                <EventIcon />
-              </InputAdornment>
-            ),
-          }}
-          sx={{ width: 220 }}
-        />
-        <Typography variant="body2" color="text.secondary">
-          Mostrando clases del {selectedDate.format('YYYY-MM-DD')}
-        </Typography>
+      <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: 'wrap', width: '100%' }}>
+        {days.map((day, idx) => (
+          <Button
+            key={day.index}
+            variant={idx === selectedDayIndex ? 'contained' : 'outlined'}
+            size="small"
+            onClick={() => setSelectedDayIndex(idx)}
+            sx={{
+              textTransform: 'none',
+              fontWeight: 700,
+              borderRadius: 2,
+              flex: 1,
+              minWidth: { xs: '100%', sm: '140px' },
+            }}
+          >
+            {day.label}
+          </Button>
+        ))}
       </Stack>
 
       {error && (
