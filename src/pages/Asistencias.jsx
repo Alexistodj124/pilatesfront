@@ -19,6 +19,7 @@ import {
   TextField,
 } from '@mui/material'
 import EventIcon from '@mui/icons-material/Event'
+import CloseIcon from '@mui/icons-material/Close'
 import dayjs from 'dayjs'
 import { API_BASE_URL } from '../config/api'
 
@@ -32,6 +33,26 @@ export default function Asistencias() {
   const [error, setError] = React.useState('')
   const [loading, setLoading] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
+  const [pendingAttendance, setPendingAttendance] = React.useState({})
+
+  const XBoxIcon = ({ filled = false }) => (
+    <Box
+      sx={{
+        width: 22,
+        height: 22,
+        borderRadius: 1,
+        border: '2px solid',
+        borderColor: filled ? 'error.main' : 'rgba(0,0,0,0.6)',
+        backgroundColor: filled ? 'rgba(244, 67, 54, 0.12)' : 'transparent',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: filled ? 'error.main' : 'rgba(0,0,0,0.6)',
+      }}
+    >
+      <CloseIcon fontSize="small" />
+    </Box>
+  )
 
   const loadData = React.useCallback(async () => {
     setLoading(true)
@@ -107,26 +128,60 @@ export default function Asistencias() {
     return `${date} · ${time} · ${name || 'Clase'}`
   }
 
-  const handleToggleAttendance = async (booking) => {
+  React.useEffect(() => {
+    const initialAttendance = {}
+    sessionBookings.forEach((booking) => {
+      initialAttendance[booking.id] = typeof booking.asistio === 'boolean' ? booking.asistio : null
+    })
+    setPendingAttendance(initialAttendance)
+  }, [sessionBookings])
+
+  const handleSelectAttendance = (bookingId, value) => {
+    setPendingAttendance((prev) => {
+      const current = prev[bookingId]
+      const nextValue = current === value ? null : value
+      return { ...prev, [bookingId]: nextValue }
+    })
+  }
+
+  const handleSubmitAttendance = async () => {
+    setSaving(true)
+    setError('')
+    const updates = sessionBookings.filter((booking) => {
+      const value = pendingAttendance[booking.id]
+      return typeof value === 'boolean' && value !== booking.asistio
+    })
+    const updatesPayload = {}
+    updates.forEach((booking) => {
+      const asistio = pendingAttendance[booking.id]
+      updatesPayload[booking.id] = {
+        asistio,
+        check_in_at: asistio ? new Date().toISOString() : null,
+      }
+    })
+
     try {
-      setSaving(true)
-      const payload = {
-        asistio: !booking.asistio,
-        check_in_at: !booking.asistio ? new Date().toISOString() : null,
+      for (const booking of updates) {
+        const payload = updatesPayload[booking.id]
+        const res = await fetch(`${API_BASE_URL}/bookings/${booking.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        const text = await res.text()
+        if (!res.ok) {
+          throw new Error(text || 'No se pudo actualizar asistencia')
+        }
       }
-      const res = await fetch(`${API_BASE_URL}/bookings/${booking.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      const text = await res.text()
-      if (!res.ok) {
-        throw new Error(text || 'No se pudo actualizar asistencia')
+
+      if (updates.length > 0) {
+        setBookings((prev) =>
+          prev.map((booking) => {
+            if (!updatesPayload[booking.id]) return booking
+            return { ...booking, asistio: updatesPayload[booking.id].asistio, check_in_at: updatesPayload[booking.id].check_in_at }
+          })
+        )
       }
-      // Optimistic update
-      setBookings((prev) =>
-        prev.map((b) => (b.id === booking.id ? { ...b, asistio: !booking.asistio, check_in_at: payload.check_in_at } : b))
-      )
     } catch (err) {
       console.error(err)
       setError('No se pudo actualizar asistencia')
@@ -212,6 +267,12 @@ export default function Asistencias() {
             Reservas: {sessionBookings.length}
           </Typography>
 
+          <Stack direction="row" justifyContent="flex-end">
+            <Button variant="contained" onClick={handleSubmitAttendance} disabled={saving || sessionBookings.length === 0}>
+              Guardar asistencia
+            </Button>
+          </Stack>
+
           {sessionBookings.length === 0 ? (
             <Typography variant="body2" color="text.secondary">
               No hay clientes reservados para esta clase.
@@ -224,12 +285,22 @@ export default function Asistencias() {
                   <ListItem
                     key={booking.id}
                     secondaryAction={(
-                      <Checkbox
-                        edge="end"
-                        checked={!!booking.asistio}
-                        onChange={() => handleToggleAttendance(booking)}
-                        disabled={saving}
-                      />
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Checkbox
+                          edge="end"
+                          checked={pendingAttendance[booking.id] === true}
+                          onChange={() => handleSelectAttendance(booking.id, true)}
+                          disabled={saving}
+                        />
+                        <Checkbox
+                          edge="end"
+                          checked={pendingAttendance[booking.id] === false}
+                          onChange={() => handleSelectAttendance(booking.id, false)}
+                          disabled={saving}
+                          icon={<XBoxIcon />}
+                          checkedIcon={<XBoxIcon filled />}
+                        />
+                      </Stack>
                     )}
                   >
                     <ListItemText
