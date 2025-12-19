@@ -28,6 +28,8 @@ export default function Asistencias() {
   const [sessions, setSessions] = React.useState([])
   const [bookings, setBookings] = React.useState([])
   const [clients, setClients] = React.useState([])
+  const [memberships, setMemberships] = React.useState([])
+  const [plans, setPlans] = React.useState([])
   const [templates, setTemplates] = React.useState([])
   const [selectedDate, setSelectedDate] = React.useState(dayjs().startOf('day'))
   const [selectedSessionId, setSelectedSessionId] = React.useState('')
@@ -59,25 +61,38 @@ export default function Asistencias() {
     setLoading(true)
     setError('')
     try {
-      const [sessionsRes, bookingsRes, clientsRes, templatesRes] = await Promise.all([
+      const [sessionsRes, bookingsRes, clientsRes, templatesRes, membershipsRes, plansRes] = await Promise.all([
         fetch(`${API_BASE_URL}/class-sessions`),
         fetch(`${API_BASE_URL}/bookings`),
         fetch(`${API_BASE_URL}/clients`),
         fetch(`${API_BASE_URL}/class-templates`),
+        fetch(`${API_BASE_URL}/memberships`),
+        fetch(`${API_BASE_URL}/membership-plans`),
       ])
-      if (!sessionsRes.ok || !bookingsRes.ok || !clientsRes.ok || !templatesRes.ok) {
+      if (
+        !sessionsRes.ok ||
+        !bookingsRes.ok ||
+        !clientsRes.ok ||
+        !templatesRes.ok ||
+        !membershipsRes.ok ||
+        !plansRes.ok
+      ) {
         throw new Error('Error al cargar asistencia')
       }
-      const [sessionsData, bookingsData, clientsData, templatesData] = await Promise.all([
+      const [sessionsData, bookingsData, clientsData, templatesData, membershipsData, plansData] = await Promise.all([
         sessionsRes.json(),
         bookingsRes.json(),
         clientsRes.json(),
         templatesRes.json(),
+        membershipsRes.json(),
+        plansRes.json(),
       ])
       setSessions(sessionsData)
       setBookings(bookingsData)
       setClients(clientsData)
       setTemplates(templatesData)
+      setMemberships(membershipsData)
+      setPlans(plansData)
     } catch (err) {
       console.error(err)
       setError('No se pudo cargar la información de asistencia')
@@ -92,6 +107,7 @@ export default function Asistencias() {
 
   const clientMap = React.useMemo(() => Object.fromEntries(clients.map((c) => [c.id, c])), [clients])
   const templateMap = React.useMemo(() => Object.fromEntries(templates.map((t) => [t.id, t])), [templates])
+  const planMap = React.useMemo(() => Object.fromEntries(plans.map((p) => [p.id, p])), [plans])
   const bookingsBySession = React.useMemo(() => {
     const map = {}
     bookings.forEach((b) => {
@@ -100,6 +116,29 @@ export default function Asistencias() {
     })
     return map
   }, [bookings])
+  const membershipsByClient = React.useMemo(() => {
+    const map = {}
+    memberships.forEach((m) => {
+      if (!map[m.client_id]) map[m.client_id] = []
+      map[m.client_id].push(m)
+    })
+    return map
+  }, [memberships])
+
+  const latestMembershipForClient = React.useCallback(
+    (clientId) => {
+      const list = membershipsByClient[clientId] || []
+      if (list.length === 0) return null
+      return list
+        .slice()
+        .sort((a, b) => {
+          const endA = a.fecha_fin ? dayjs(a.fecha_fin).valueOf() : dayjs(a.fecha_inicio).valueOf()
+          const endB = b.fecha_fin ? dayjs(b.fecha_fin).valueOf() : dayjs(b.fecha_inicio).valueOf()
+          return endB - endA
+        })[0]
+    },
+    [membershipsByClient]
+  )
 
   const sessionsForDate = React.useMemo(
     () => sessions.filter((s) => dayjs(s.fecha).isSame(selectedDate, 'day')),
@@ -190,6 +229,41 @@ export default function Asistencias() {
           if (!movementRes.ok) {
             throw new Error(movementText || 'No se pudo registrar la multa')
           }
+        }
+      }
+
+      if (updates.length > 0) {
+        const membershipUsageIncrements = {}
+        updates.forEach((booking) => {
+          const membership = latestMembershipForClient(booking.client_id)
+          if (!membership) return
+          const plan = planMap[membership.plan_id]
+          if (!plan || typeof plan.max_clases_totales !== 'number') return
+          membershipUsageIncrements[membership.id] = (membershipUsageIncrements[membership.id] || 0) + 1
+        })
+
+        for (const [membershipId, increment] of Object.entries(membershipUsageIncrements)) {
+          const membership = memberships.find((m) => m.id === Number(membershipId))
+          const currentUsed = membership?.clases_usadas ?? 0
+          const res = await fetch(`${API_BASE_URL}/memberships/${membershipId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ clases_usadas: currentUsed + increment }),
+          })
+          const text = await res.text()
+          if (!res.ok) {
+            throw new Error(text || 'No se pudo actualizar clases usadas')
+          }
+        }
+
+        if (Object.keys(membershipUsageIncrements).length > 0) {
+          setMemberships((prev) =>
+            prev.map((m) =>
+              membershipUsageIncrements[m.id]
+                ? { ...m, clases_usadas: (m.clases_usadas ?? 0) + membershipUsageIncrements[m.id] }
+                : m
+            )
+          )
         }
       }
 
