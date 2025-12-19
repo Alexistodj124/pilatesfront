@@ -17,6 +17,10 @@ import {
   Button,
   InputAdornment,
   TextField,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material'
 import EventIcon from '@mui/icons-material/Event'
 import CloseIcon from '@mui/icons-material/Close'
@@ -37,6 +41,7 @@ export default function Asistencias() {
   const [loading, setLoading] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
   const [pendingAttendance, setPendingAttendance] = React.useState({})
+  const [confirmOpen, setConfirmOpen] = React.useState(false)
 
   const XBoxIcon = ({ filled = false }) => (
     <Box
@@ -376,7 +381,11 @@ export default function Asistencias() {
                   Asistencia ya enviada para esta clase.
                 </Typography>
               )}
-              <Button variant="contained" onClick={handleSubmitAttendance} disabled={saving || sessionBookings.length === 0 || allSubmitted}>
+              <Button
+                variant="contained"
+                onClick={() => setConfirmOpen(true)}
+                disabled={saving || sessionBookings.length === 0 || allSubmitted}
+              >
                 Guardar asistencia
               </Button>
             </Stack>
@@ -423,6 +432,31 @@ export default function Asistencias() {
           )}
         </Stack>
       </Paper>
+
+      <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>Confirmar asistencia</DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2" color="text.secondary">
+            Una vez enviada la asistencia no se podrá modificar. ¿Deseas continuar?
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmOpen(false)} disabled={saving}>
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              setConfirmOpen(false)
+              handleSubmitAttendance()
+            }}
+            disabled={saving}
+            color="error"
+          >
+            Enviar asistencia
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }
