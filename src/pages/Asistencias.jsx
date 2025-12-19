@@ -24,6 +24,7 @@ import dayjs from 'dayjs'
 import { API_BASE_URL } from '../config/api'
 
 export default function Asistencias() {
+  const FINE_AMOUNT = 100
   const [sessions, setSessions] = React.useState([])
   const [bookings, setBookings] = React.useState([])
   const [clients, setClients] = React.useState([])
@@ -171,6 +172,24 @@ export default function Asistencias() {
         const text = await res.text()
         if (!res.ok) {
           throw new Error(text || 'No se pudo actualizar asistencia')
+        }
+
+        if (payload.asistio === false) {
+          const movementRes = await fetch(`${API_BASE_URL}/account-movements`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              client_id: booking.client_id,
+              booking_id: booking.id,
+              amount: FINE_AMOUNT,
+              tipo: 'fine',
+              nota: 'Multa por inasistencia',
+            }),
+          })
+          const movementText = await movementRes.text()
+          if (!movementRes.ok) {
+            throw new Error(movementText || 'No se pudo registrar la multa')
+          }
         }
       }
 
