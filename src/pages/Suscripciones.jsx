@@ -222,6 +222,7 @@ export default function Suscripciones() {
         membership: latest,
         planName: plan?.nombre || '—',
         planPrice: plan?.precio,
+        planMaxClasesTotales: plan?.max_clases_totales,
         vence: latest ? parseDate(latest.fecha_fin) : null,
         saldoActual: getBalance(client),
       }
@@ -466,7 +467,13 @@ export default function Suscripciones() {
                     )
                   })()}
                 </TableCell>
-                <TableCell align="right">{c.membership?.clases_usadas ?? '—'}</TableCell>
+                <TableCell align="right">
+                  {c.membership
+                    ? typeof c.planMaxClasesTotales === 'number'
+                      ? c.membership?.clases_usadas ?? 0
+                      : 'N/A'
+                    : '—'}
+                </TableCell>
                 <TableCell align="right">
                   <Button
                     size="small"
