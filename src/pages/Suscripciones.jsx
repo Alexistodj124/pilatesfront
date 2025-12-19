@@ -40,6 +40,8 @@ export default function Suscripciones() {
   const [openPlanDialog, setOpenPlanDialog] = React.useState(false)
   const [openEditDialog, setOpenEditDialog] = React.useState(false)
   const [openPaymentDialog, setOpenPaymentDialog] = React.useState(false)
+  const [openMembershipsDialog, setOpenMembershipsDialog] = React.useState(false)
+  const [membershipsDialogClient, setMembershipsDialogClient] = React.useState(null)
   const [editTarget, setEditTarget] = React.useState(null)
 
   const [clientForm, setClientForm] = React.useState({
@@ -58,6 +60,11 @@ export default function Suscripciones() {
     duracion_dias: '',
     precio: '',
     activo: true,
+  })
+  const [newMembershipForm, setNewMembershipForm] = React.useState({
+    plan_id: '',
+    fecha_inicio: dayjs().format('YYYY-MM-DD'),
+    estado: 'Activa',
   })
 
   const loadData = React.useCallback(async () => {
@@ -88,6 +95,7 @@ export default function Suscripciones() {
         ...prev,
         plan_id: plansData[0]?.id || '',
       }))
+      setNewMembershipForm((prev) => ({ ...prev, plan_id: plansData[0]?.id || '' }))
     } catch (err) {
       console.error(err)
       setError('No se pudieron cargar datos de suscripciones')
@@ -225,6 +233,7 @@ export default function Suscripciones() {
         planMaxClasesTotales: plan?.max_clases_totales,
         vence: latest ? parseDate(latest.fecha_fin) : null,
         saldoActual: getBalance(client),
+        activeMemberships: list.filter((m) => m.estado === 'Activa'),
       }
     })
   }, [clients, membershipByClient, planMap, getBalance])
@@ -286,6 +295,49 @@ export default function Suscripciones() {
       amount: balance && balance > 0 ? balance.toFixed(2) : '',
     })
     setOpenPaymentDialog(true)
+  }
+
+  const handleOpenMemberships = (client) => {
+    setMembershipsDialogClient(client)
+    setNewMembershipForm({
+      plan_id: plans[0]?.id || '',
+      fecha_inicio: dayjs().format('YYYY-MM-DD'),
+      estado: 'Activa',
+    })
+    setOpenMembershipsDialog(true)
+  }
+
+  const handleCreateMembership = async () => {
+    if (!membershipsDialogClient || !newMembershipForm.plan_id) {
+      setError('Selecciona un plan para crear la membresía')
+      return
+    }
+    try {
+      setError('')
+      const selectedPlan = plans.find((p) => Number(p.id) === Number(newMembershipForm.plan_id))
+      const start = dayjs(newMembershipForm.fecha_inicio)
+      const end = selectedPlan?.duracion_dias ? start.add(selectedPlan.duracion_dias, 'day') : start.add(30, 'day')
+
+      const resMembership = await fetch(`${API_BASE_URL}/memberships`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_id: membershipsDialogClient.id,
+          plan_id: newMembershipForm.plan_id,
+          fecha_inicio: start.format('YYYY-MM-DD'),
+          fecha_fin: end.format('YYYY-MM-DD'),
+          estado: newMembershipForm.estado,
+          clases_usadas: 0,
+        }),
+      })
+      if (!resMembership.ok) throw new Error('No se pudo crear la membresía')
+
+      setOpenMembershipsDialog(false)
+      loadData()
+    } catch (err) {
+      console.error(err)
+      setError('No se pudo crear la membresía')
+    }
   }
 
   const handleSubmitPayment = async () => {
@@ -362,27 +414,12 @@ export default function Suscripciones() {
       })
       if (!resClient.ok) throw new Error('No se pudo actualizar el cliente')
 
-      if (editMembershipForm.id) {
-        const resMembership = await fetch(`${API_BASE_URL}/memberships/${editMembershipForm.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            plan_id: editMembershipForm.plan_id,
-            fecha_inicio: editMembershipForm.fecha_inicio,
-            fecha_fin: editMembershipForm.fecha_fin,
-            estado: editMembershipForm.estado,
-            clases_usadas: Number(editMembershipForm.clases_usadas) || 0,
-          }),
-        })
-        if (!resMembership.ok) throw new Error('No se pudo actualizar la membresía')
-      }
-
       setOpenEditDialog(false)
       setEditTarget(null)
       loadData()
     } catch (err) {
       console.error(err)
-      setError('No se pudo actualizar el cliente o su membresía')
+      setError('No se pudo actualizar el cliente')
     }
   }
 
@@ -428,11 +465,8 @@ export default function Suscripciones() {
             <TableRow>
               <TableCell>Cliente</TableCell>
               <TableCell>Teléfono</TableCell>
-              <TableCell>Plan</TableCell>
-              <TableCell>Estado</TableCell>
-              <TableCell>Vence</TableCell>
+              <TableCell align="right">Membresías activas</TableCell>
               <TableCell align="right">Saldo</TableCell>
-              <TableCell align="right">Clases usadas</TableCell>
               <TableCell align="right">Acciones</TableCell>
             </TableRow>
           </TableHead>
@@ -441,20 +475,19 @@ export default function Suscripciones() {
               <TableRow key={c.id} hover sx={{ cursor: 'pointer' }} onClick={() => handleOpenEdit(c)}>
                 <TableCell>{c.nombre}</TableCell>
                 <TableCell>{c.telefono}</TableCell>
-                <TableCell>{c.planName}</TableCell>
-                <TableCell>
-                  {c.membership ? (
-                    <Chip
-                      size="small"
-                      label={c.membership.estado}
-                      color={c.membership.estado === 'Activa' ? 'success' : 'warning'}
-                      variant={c.membership.estado === 'Activa' ? 'filled' : 'outlined'}
-                    />
-                  ) : (
-                    <Chip size="small" label="Sin membresía" variant="outlined" />
-                  )}
+                <TableCell align="right">
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleOpenMemberships(c)
+                    }}
+                    color={c.activeMemberships.length === 0 ? 'error' : 'primary'}
+                  >
+                    {c.activeMemberships.length}
+                  </Button>
                 </TableCell>
-                <TableCell>{c.vence ? c.vence.format('YYYY-MM-DD') : '—'}</TableCell>
                 <TableCell align="right">
                   {(() => {
                     const balance = c.saldoActual
@@ -466,13 +499,6 @@ export default function Suscripciones() {
                       </Typography>
                     )
                   })()}
-                </TableCell>
-                <TableCell align="right">
-                  {c.membership
-                    ? typeof c.planMaxClasesTotales === 'number'
-                      ? c.membership?.clases_usadas ?? 0
-                      : 'N/A'
-                    : '—'}
                 </TableCell>
                 <TableCell align="right">
                   <Button
@@ -491,7 +517,7 @@ export default function Suscripciones() {
             ))}
             {enhancedClients.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} align="center">
+                <TableCell colSpan={5} align="center">
                   <Typography color="text.secondary">
                     {loading ? 'Cargando...' : 'No hay clientes con suscripción aún.'}
                   </Typography>
@@ -670,8 +696,90 @@ export default function Suscripciones() {
         </DialogActions>
       </Dialog>
 
+      <Dialog open={openMembershipsDialog} onClose={() => setOpenMembershipsDialog(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Membresías de {membershipsDialogClient?.nombre || ''}</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2}>
+            <Typography variant="subtitle1" fontWeight={700}>
+              Activas: {membershipsDialogClient?.activeMemberships?.length || 0}
+            </Typography>
+            <Stack spacing={1}>
+              {(membershipByClient[membershipsDialogClient?.id] || [])
+                .filter((m) => m.estado === 'Activa')
+                .map((m) => {
+                const plan = planMap[m.plan_id]
+                return (
+                  <Paper key={m.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                    <Typography variant="subtitle2" fontWeight={600}>
+                      {plan?.nombre || 'Plan'} · {m.estado}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {dayjs(m.fecha_inicio).format('YYYY-MM-DD')} → {dayjs(m.fecha_fin).format('YYYY-MM-DD')}
+                    </Typography>
+                    {typeof m.clases_usadas === 'number' && (
+                      <Typography variant="body2" color="text.secondary">
+                        Clases usadas: {m.clases_usadas}
+                      </Typography>
+                    )}
+                  </Paper>
+                )
+              })}
+              {(membershipByClient[membershipsDialogClient?.id] || []).filter((m) => m.estado === 'Activa').length === 0 && (
+                <Typography variant="body2" color="text.secondary">
+                  No hay membresías activas para este cliente.
+                </Typography>
+              )}
+            </Stack>
+            <Divider />
+            <Typography variant="subtitle1" fontWeight={700}>
+              Agregar membresía
+            </Typography>
+            <Stack spacing={2}>
+              <TextField
+                select
+                label="Plan"
+                value={newMembershipForm.plan_id}
+                onChange={(e) => setNewMembershipForm({ ...newMembershipForm, plan_id: Number(e.target.value) })}
+                fullWidth
+              >
+                {plans.map((plan) => (
+                  <MenuItem key={plan.id} value={plan.id}>
+                    {plan.nombre} · Q{plan.precio}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                label="Fecha inicio"
+                type="date"
+                value={newMembershipForm.fecha_inicio}
+                onChange={(e) => setNewMembershipForm({ ...newMembershipForm, fecha_inicio: e.target.value })}
+                InputLabelProps={{ shrink: true }}
+                fullWidth
+              />
+              <TextField
+                select
+                label="Estado"
+                value={newMembershipForm.estado}
+                onChange={(e) => setNewMembershipForm({ ...newMembershipForm, estado: e.target.value })}
+                fullWidth
+              >
+                <MenuItem value="Activa">Activa</MenuItem>
+                <MenuItem value="En pausa">En pausa</MenuItem>
+                <MenuItem value="Vencido">Vencido</MenuItem>
+              </TextField>
+            </Stack>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenMembershipsDialog(false)}>Cancelar</Button>
+          <Button variant="contained" onClick={handleCreateMembership} disabled={!membershipsDialogClient}>
+            Guardar membresía
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <Dialog open={openEditDialog} onClose={() => setOpenEditDialog(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Editar cliente y membresía</DialogTitle>
+        <DialogTitle>Editar cliente</DialogTitle>
         <DialogContent dividers>
           <Stack spacing={2}>
             <Typography variant="subtitle1" fontWeight={700}>
@@ -707,70 +815,6 @@ export default function Suscripciones() {
               <MenuItem value="true">Activa</MenuItem>
               <MenuItem value="false">Inactiva</MenuItem>
             </TextField>
-
-            <Divider />
-            <Typography variant="subtitle1" fontWeight={700}>
-              Membresía
-            </Typography>
-            <Stack direction="row" spacing={1} alignItems="center">
-              <TextField
-                select
-                label="Plan"
-                value={editMembershipForm.plan_id}
-                onChange={(e) => setEditMembershipForm({ ...editMembershipForm, plan_id: Number(e.target.value) })}
-                fullWidth
-                disabled={!editMembershipForm.id}
-              >
-                {plans.map((plan) => (
-                  <MenuItem key={plan.id} value={plan.id}>
-                    {plan.nombre} · Q{plan.precio}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Stack>
-            <TextField
-              label="Fecha inicio"
-              type="date"
-              value={editMembershipForm.fecha_inicio}
-              onChange={(e) => setEditMembershipForm({ ...editMembershipForm, fecha_inicio: e.target.value })}
-              InputLabelProps={{ shrink: true }}
-              fullWidth
-              disabled={!editMembershipForm.id}
-            />
-            <TextField
-              label="Fecha fin"
-              type="date"
-              value={editMembershipForm.fecha_fin}
-              onChange={(e) => setEditMembershipForm({ ...editMembershipForm, fecha_fin: e.target.value })}
-              InputLabelProps={{ shrink: true }}
-              fullWidth
-              disabled={!editMembershipForm.id}
-            />
-            <TextField
-              select
-              label="Estado"
-              value={editMembershipForm.estado}
-              onChange={(e) => setEditMembershipForm({ ...editMembershipForm, estado: e.target.value })}
-              fullWidth
-              disabled={!editMembershipForm.id}
-            >
-              <MenuItem value="Activa">Activa</MenuItem>
-              <MenuItem value="En pausa">En pausa</MenuItem>
-              <MenuItem value="Vencido">Vencido</MenuItem>
-            </TextField>
-            <TextField
-              label="Clases usadas"
-              type="number"
-              value={editMembershipForm.clases_usadas}
-              onChange={(e) => setEditMembershipForm({ ...editMembershipForm, clases_usadas: e.target.value })}
-              fullWidth
-              disabled={!editMembershipForm.id}
-            />
-            {!editMembershipForm.id && (
-              <Alert severity="info">
-                Este cliente no tiene membresía creada. Usa el formulario de “Agregar cliente” para crear una nueva.
-              </Alert>
-            )}
           </Stack>
         </DialogContent>
         <DialogActions>
