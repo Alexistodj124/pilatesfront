@@ -24,7 +24,10 @@ import {
 import DeleteIcon from '@mui/icons-material/Delete'
 import AddIcon from '@mui/icons-material/Add'
 import dayjs from 'dayjs'
+import 'dayjs/locale/es'
 import { API_BASE_URL } from '../config/api'
+
+dayjs.locale('es')
 
 const buildNextSixDays = () => {
   const days = []

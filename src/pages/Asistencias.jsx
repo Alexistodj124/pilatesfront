@@ -22,7 +22,10 @@ import {
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
 import dayjs from 'dayjs'
+import 'dayjs/locale/es'
 import { API_BASE_URL } from '../config/api'
+
+dayjs.locale('es')
 
 const buildNextSixDays = () => {
   const days = []
@@ -120,7 +123,7 @@ export default function Asistencias() {
     } finally {
       setLoading(false)
     }
-  }, [selectedSessionId])
+  }, [])
 
   React.useEffect(() => {
     loadData()
