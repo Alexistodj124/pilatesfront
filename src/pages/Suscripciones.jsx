@@ -32,10 +32,14 @@ export default function Suscripciones() {
   const [memberships, setMemberships] = React.useState([])
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState('')
+  const [paymentSaving, setPaymentSaving] = React.useState(false)
+  const [paymentError, setPaymentError] = React.useState('')
+  const [paymentForm, setPaymentForm] = React.useState({ client: null, amount: '' })
 
   const [openClientDialog, setOpenClientDialog] = React.useState(false)
   const [openPlanDialog, setOpenPlanDialog] = React.useState(false)
   const [openEditDialog, setOpenEditDialog] = React.useState(false)
+  const [openPaymentDialog, setOpenPaymentDialog] = React.useState(false)
   const [editTarget, setEditTarget] = React.useState(null)
 
   const [clientForm, setClientForm] = React.useState({
@@ -198,6 +202,13 @@ export default function Suscripciones() {
     return map
   }, [memberships])
 
+  const getBalance = React.useCallback((client) => {
+    if (!client) return null
+    if (typeof client.balance === 'number') return client.balance
+    if (typeof client.saldo === 'number') return client.saldo
+    return null
+  }, [])
+
   const enhancedClients = React.useMemo(() => {
     return clients.map((client) => {
       const list = membershipByClient[client.id] || []
@@ -212,9 +223,10 @@ export default function Suscripciones() {
         planName: plan?.nombre || '—',
         planPrice: plan?.precio,
         vence: latest ? parseDate(latest.fecha_fin) : null,
+        saldoActual: getBalance(client),
       }
     })
-  }, [clients, membershipByClient, planMap])
+  }, [clients, membershipByClient, planMap, getBalance])
 
   const [editClientForm, setEditClientForm] = React.useState({
     id: null,
@@ -263,6 +275,73 @@ export default function Suscripciones() {
       })
     }
     setOpenEditDialog(true)
+  }
+
+  const handleOpenPayment = (client) => {
+    const balance = getBalance(client)
+    setPaymentError('')
+    setPaymentForm({
+      client,
+      amount: balance && balance > 0 ? balance.toFixed(2) : '',
+    })
+    setOpenPaymentDialog(true)
+  }
+
+  const handleSubmitPayment = async () => {
+    if (!paymentForm.client) return
+    const balance = getBalance(paymentForm.client)
+    const amountNumber = Number(paymentForm.amount)
+
+    if (!paymentForm.amount || Number.isNaN(amountNumber) || amountNumber <= 0) {
+      setPaymentError('Ingresa un monto válido')
+      return
+    }
+    if (balance !== null && amountNumber > balance) {
+      setPaymentError('El pago no puede ser mayor al saldo pendiente')
+      return
+    }
+
+    try {
+      setPaymentSaving(true)
+      setPaymentError('')
+      setError('')
+
+      const paymentPayload = {
+        client_id: paymentForm.client.id,
+        amount: amountNumber,
+        tipo: 'payment',
+        nota: 'Pago aplicado a saldo',
+      }
+
+      const res = await fetch(`${API_BASE_URL}/account-movements`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(paymentPayload),
+      })
+      const contentType = res.headers.get('content-type') || ''
+      const text = await res.text()
+      let parsedError
+      if (contentType.includes('application/json')) {
+        try {
+          parsedError = JSON.parse(text)
+        } catch (parseErr) {
+          parsedError = null
+        }
+      }
+
+      if (!res.ok) {
+        const message = parsedError?.error || parsedError?.message || text || 'No se pudo registrar el pago'
+        throw new Error(message)
+      }
+
+      setOpenPaymentDialog(false)
+      setPaymentForm({ client: null, amount: '' })
+      loadData()
+    } catch (err) {
+      setPaymentError('No se pudo registrar el pago')
+    } finally {
+      setPaymentSaving(false)
+    }
   }
 
   const handleSaveEdit = async () => {
@@ -353,6 +432,7 @@ export default function Suscripciones() {
               <TableCell>Vence</TableCell>
               <TableCell align="right">Saldo</TableCell>
               <TableCell align="right">Clases usadas</TableCell>
+              <TableCell align="right">Acciones</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -376,7 +456,7 @@ export default function Suscripciones() {
                 <TableCell>{c.vence ? c.vence.format('YYYY-MM-DD') : '—'}</TableCell>
                 <TableCell align="right">
                   {(() => {
-                    const balance = typeof c.balance === 'number' ? c.balance : typeof c.saldo === 'number' ? c.saldo : null
+                    const balance = c.saldoActual
                     const display = balance === null ? '—' : `Q${balance.toFixed(2)}`
                     const isPending = balance !== null && balance > 0
                     return (
@@ -387,11 +467,24 @@ export default function Suscripciones() {
                   })()}
                 </TableCell>
                 <TableCell align="right">{c.membership?.clases_usadas ?? '—'}</TableCell>
+                <TableCell align="right">
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleOpenPayment(c)
+                    }}
+                    disabled={!c.saldoActual || c.saldoActual <= 0}
+                  >
+                    Registrar pago
+                  </Button>
+                </TableCell>
               </TableRow>
             ))}
             {enhancedClients.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} align="center">
+                <TableCell colSpan={8} align="center">
                   <Typography color="text.secondary">
                     {loading ? 'Cargando...' : 'No hay clientes con suscripción aún.'}
                   </Typography>
@@ -534,6 +627,38 @@ export default function Suscripciones() {
             disabled={!planForm.nombre.trim() || !planForm.precio}
           >
             Guardar plan
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={openPaymentDialog} onClose={() => setOpenPaymentDialog(false)} fullWidth maxWidth="xs">
+        <DialogTitle>Registrar pago</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2}>
+            <Typography variant="body1" fontWeight={600}>
+              Cliente: {paymentForm.client?.nombre || '—'}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Saldo pendiente: {paymentForm.client?.saldoActual != null ? `Q${paymentForm.client.saldoActual.toFixed(2)}` : 'No disponible'}
+            </Typography>
+            <TextField
+              label="Monto a pagar"
+              type="number"
+              value={paymentForm.amount}
+              onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+              fullWidth
+              inputProps={{ min: 0, step: 0.01 }}
+              error={!!paymentError}
+              helperText={paymentError || 'El monto no puede superar el saldo pendiente.'}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenPaymentDialog(false)} disabled={paymentSaving}>
+            Cancelar
+          </Button>
+          <Button variant="contained" onClick={handleSubmitPayment} disabled={paymentSaving}>
+            {paymentSaving ? 'Guardando...' : 'Guardar pago'}
           </Button>
         </DialogActions>
       </Dialog>
