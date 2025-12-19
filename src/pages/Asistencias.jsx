@@ -159,6 +159,8 @@ export default function Asistencias() {
 
   const selectedSession = sessions.find((s) => s.id === selectedSessionId)
   const sessionBookings = bookingsBySession[selectedSessionId] || []
+  const isCompleted = (booking) => (booking?.estado || '').toLowerCase() === 'completada'
+  const allSubmitted = sessionBookings.length > 0 && sessionBookings.every((b) => isCompleted(b))
 
   const sessionLabel = (session) => {
     if (!session) return 'Clase'
@@ -188,6 +190,7 @@ export default function Asistencias() {
     setSaving(true)
     setError('')
     const updates = sessionBookings.filter((booking) => {
+      if (isCompleted(booking)) return false
       const value = pendingAttendance[booking.id]
       return typeof value === 'boolean' && value !== booking.asistio
     })
@@ -196,7 +199,8 @@ export default function Asistencias() {
       const asistio = pendingAttendance[booking.id]
       updatesPayload[booking.id] = {
         asistio,
-        check_in_at: asistio ? new Date().toISOString() : null,
+        check_in_at: new Date().toISOString(),
+        estado: 'Completada',
       }
     })
 
@@ -271,7 +275,12 @@ export default function Asistencias() {
         setBookings((prev) =>
           prev.map((booking) => {
             if (!updatesPayload[booking.id]) return booking
-            return { ...booking, asistio: updatesPayload[booking.id].asistio, check_in_at: updatesPayload[booking.id].check_in_at }
+            return {
+              ...booking,
+              asistio: updatesPayload[booking.id].asistio,
+              check_in_at: updatesPayload[booking.id].check_in_at,
+              estado: 'Completada',
+            }
           })
         )
       }
@@ -361,9 +370,16 @@ export default function Asistencias() {
           </Typography>
 
           <Stack direction="row" justifyContent="flex-end">
-            <Button variant="contained" onClick={handleSubmitAttendance} disabled={saving || sessionBookings.length === 0}>
-              Guardar asistencia
-            </Button>
+            <Stack alignItems="flex-end" spacing={0.5}>
+              {allSubmitted && (
+                <Typography variant="caption" color="text.secondary">
+                  Asistencia ya enviada para esta clase.
+                </Typography>
+              )}
+              <Button variant="contained" onClick={handleSubmitAttendance} disabled={saving || sessionBookings.length === 0 || allSubmitted}>
+                Guardar asistencia
+              </Button>
+            </Stack>
           </Stack>
 
           {sessionBookings.length === 0 ? (
@@ -383,13 +399,13 @@ export default function Asistencias() {
                           edge="end"
                           checked={pendingAttendance[booking.id] === true}
                           onChange={() => handleSelectAttendance(booking.id, true)}
-                          disabled={saving}
+                          disabled={saving || isCompleted(booking)}
                         />
                         <Checkbox
                           edge="end"
                           checked={pendingAttendance[booking.id] === false}
                           onChange={() => handleSelectAttendance(booking.id, false)}
-                          disabled={saving}
+                          disabled={saving || isCompleted(booking)}
                           icon={<XBoxIcon />}
                           checkedIcon={<XBoxIcon filled />}
                         />
