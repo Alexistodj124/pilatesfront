@@ -513,12 +513,18 @@ export default function Reservas() {
 
               {sessionsForDay.map((session) => {
                 const booked = bookingsBySession[session.id]?.length || 0
+                const estado = (session.estado || '').toLowerCase()
+                const isCanceled = estado === 'cancelada'
                 const isFull = booked >= session.capacidad
                 const template = session.template_id ? templateMap[session.template_id] : null
                 const name = template?.nombre || `Clase #${session.id}`
-                const chipLabel = isFull ? 'Llena' : `Disponible (${session.capacidad - booked} cupos)`
-                const backgroundColor = isFull ? '#f5d6d6' : '#d6f5e4'
-                const borderColor = isFull ? '#d32f2f' : '#2e7d32'
+                const chipLabel = isCanceled
+                  ? 'Cancelada'
+                  : isFull
+                  ? 'Llena'
+                  : `Disponible (${session.capacidad - booked} cupos)`
+                const backgroundColor = isCanceled ? '#f5e3e3' : isFull ? '#f5d6d6' : '#d6f5e4'
+                const borderColor = isCanceled ? '#b71c1c' : isFull ? '#d32f2f' : '#2e7d32'
 
                 return (
                   <Box
@@ -528,24 +534,33 @@ export default function Reservas() {
                       borderRadius: 2,
                       backgroundColor,
                       border: `1px solid ${borderColor}`,
-                      cursor: 'pointer',
+                      cursor: isCanceled ? 'not-allowed' : 'pointer',
+                      opacity: isCanceled ? 0.7 : 1,
                     }}
-                    onClick={() => handleOpenDialog(session)}
+                    onClick={() => {
+                      if (isCanceled) return
+                      handleOpenDialog(session)
+                    }}
                   >
                     <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
-                      <Typography variant="subtitle1" fontWeight={600}>
+                      <Typography variant="subtitle1" fontWeight={600} sx={{ textDecoration: isCanceled ? 'line-through' : 'none' }}>
                         {formatTime(session.hora_inicio)} · {name}
                       </Typography>
                       <Chip
                         size="small"
                         label={chipLabel}
-                        color={isFull ? 'error' : 'success'}
+                        color={isCanceled || isFull ? 'error' : 'success'}
                         sx={{ fontWeight: 600 }}
                       />
                     </Stack>
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, textDecoration: isCanceled ? 'line-through' : 'none' }}>
                       Coach: {coachMap[session.coach_id]?.nombre || `ID ${session.coach_id}`} · Capacidad: {session.capacidad}
                     </Typography>
+                    {isCanceled && (
+                      <Typography variant="caption" color="error.main">
+                        ✕ Clase cancelada
+                      </Typography>
+                    )}
                   </Box>
                 )
               })}
