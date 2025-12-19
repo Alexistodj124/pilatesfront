@@ -35,6 +35,7 @@ export default function Suscripciones() {
   const [paymentSaving, setPaymentSaving] = React.useState(false)
   const [paymentError, setPaymentError] = React.useState('')
   const [paymentForm, setPaymentForm] = React.useState({ client: null, amount: '' })
+  const [search, setSearch] = React.useState('')
 
   const [openClientDialog, setOpenClientDialog] = React.useState(false)
   const [openPlanDialog, setOpenPlanDialog] = React.useState(false)
@@ -218,7 +219,16 @@ export default function Suscripciones() {
   }, [])
 
   const enhancedClients = React.useMemo(() => {
-    return clients.map((client) => {
+    const term = search.trim().toLowerCase()
+    const filtered = term
+      ? clients.filter(
+          (client) =>
+            client.nombre?.toLowerCase().includes(term) ||
+            client.telefono?.toLowerCase().includes(term)
+        )
+      : clients
+
+    return filtered.map((client) => {
       const list = membershipByClient[client.id] || []
       const latest = list
         .slice()
@@ -236,7 +246,7 @@ export default function Suscripciones() {
         activeMemberships: list.filter((m) => m.estado === 'Activa'),
       }
     })
-  }, [clients, membershipByClient, planMap, getBalance])
+  }, [clients, membershipByClient, planMap, getBalance, search])
 
   const [editClientForm, setEditClientForm] = React.useState({
     id: null,
@@ -429,9 +439,18 @@ export default function Suscripciones() {
         <Typography variant="h5" sx={{ fontWeight: 600 }}>
           Suscripciones
         </Typography>
-        <Button variant="contained" onClick={() => setOpenClientDialog(true)} disabled={plans.length === 0}>
-          Agregar cliente
-        </Button>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }} sx={{ width: { xs: '100%', sm: 'auto' } }}>
+          <TextField
+            size="small"
+            placeholder="Filtrar por nombre o teléfono"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            sx={{ minWidth: { xs: '100%', sm: 260 } }}
+          />
+          <Button variant="contained" onClick={() => setOpenClientDialog(true)} disabled={plans.length === 0}>
+            Agregar cliente
+          </Button>
+        </Stack>
       </Stack>
 
       {error && (
