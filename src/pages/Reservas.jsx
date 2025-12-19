@@ -26,6 +26,7 @@ import AddIcon from '@mui/icons-material/Add'
 import dayjs from 'dayjs'
 import 'dayjs/locale/es'
 import { API_BASE_URL } from '../config/api'
+import { useAuth } from '../context/AuthContext'
 
 dayjs.locale('es')
 
@@ -49,6 +50,7 @@ const buildNextSixDays = () => {
 const formatTime = (value) => (value ? value.slice(0, 5) : '—')
 
 export default function Reservas() {
+  const { isAdmin } = useAuth()
   const [days] = React.useState(buildNextSixDays)
   const [selectedDayIndex, setSelectedDayIndex] = React.useState(0)
   const selectedDay = days[selectedDayIndex] ?? days[0]
@@ -446,9 +448,11 @@ export default function Reservas() {
           <Button variant="outlined" onClick={handleGenerateSessionsForDay} disabled={generating}>
             Generar Clases
           </Button>
-          <Button variant="contained" onClick={handleOpenNewClass}>
-            Nueva clase
-          </Button>
+          {isAdmin && (
+            <Button variant="contained" onClick={handleOpenNewClass}>
+              Nueva clase
+            </Button>
+          )}
         </Stack>
       </Stack>
 
@@ -678,14 +682,18 @@ export default function Reservas() {
         </DialogContent>
         <DialogActions>
           <Stack direction="row" spacing={1} sx={{ width: '100%' }} justifyContent="space-between">
-            <Button
-              color="error"
-              variant="outlined"
-              onClick={() => setCancelDialogOpen(true)}
-              disabled={!selectedSession || selectedSession.estado === 'Cancelada'}
-            >
-              Cancelar clase
-            </Button>
+            {isAdmin ? (
+              <Button
+                color="error"
+                variant="outlined"
+                onClick={() => setCancelDialogOpen(true)}
+                disabled={!selectedSession || selectedSession.estado === 'Cancelada'}
+              >
+                Cancelar clase
+              </Button>
+            ) : (
+              <Box />
+            )}
             <Stack direction="row" spacing={1}>
               <Button onClick={() => setDialogOpen(false)}>Cerrar</Button>
               <Button variant="contained" onClick={handleAddBooking} disabled={!newBooking.client_id || !newBooking.membership_id}>
