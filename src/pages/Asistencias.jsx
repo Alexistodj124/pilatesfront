@@ -148,6 +148,7 @@ export default function Asistencias() {
     })
     return map
   }, [memberships])
+  const EMPTY_BOOKINGS = React.useMemo(() => [], [])
 
   const latestMembershipForClient = React.useCallback(
     (clientId) => {
@@ -185,7 +186,7 @@ export default function Asistencias() {
   }, [sessionsForDate, selectedSessionId])
 
   const selectedSession = sessions.find((s) => s.id === selectedSessionId)
-  const sessionBookings = bookingsBySession[selectedSessionId] || []
+  const sessionBookings = bookingsBySession[selectedSessionId] || EMPTY_BOOKINGS
   const isCompleted = (booking) => (booking?.estado || '').toLowerCase() === 'completada'
   const allSubmitted = sessionBookings.length > 0 && sessionBookings.every((b) => isCompleted(b))
 
