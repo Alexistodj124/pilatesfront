@@ -27,7 +27,7 @@ export function RequireAdmin({ children }) {
 
   if (!isAdmin) {
     // logueado pero NO admin -> lo mandamos al POS (ventas)
-    return <Navigate to="/ventas" replace />
+    return <Navigate to="/" replace />
   }
 
   return children

@@ -11,7 +11,7 @@ import MenuItem from '@mui/material/MenuItem'
 import { useAuth } from '../context/AuthContext'
 
 export default function AppLayout() {
-  const { user, logout } = useAuth()
+  const { user, logout, isAdmin } = useAuth()
   const navigate = useNavigate()
   const [anchorAgenda, setAnchorAgenda] = React.useState(null)
   const [anchorOps, setAnchorOps] = React.useState(null)
@@ -57,12 +57,16 @@ export default function AppLayout() {
                 <MenuItem component={RouterLink} to="/asistencias" onClick={handleCloseAgenda}>
                   Asistencias
                 </MenuItem>
-                <MenuItem component={RouterLink} to="/suscripciones" onClick={handleCloseAgenda}>
-                  Suscripciones
-                </MenuItem>
-                <MenuItem component={RouterLink} to="/reportesclases" onClick={handleCloseOps}>
-                  Reportes
-                </MenuItem>
+                {isAdmin && (
+                  <MenuItem component={RouterLink} to="/suscripciones" onClick={handleCloseAgenda}>
+                    Suscripciones
+                  </MenuItem>
+                )}
+                {isAdmin && (
+                  <MenuItem component={RouterLink} to="/reportesclases" onClick={handleCloseOps}>
+                    Reportes
+                  </MenuItem>
+                )}
               </Menu>
 
               <Button color="inherit" onClick={handleOpenOps}>
@@ -76,15 +80,21 @@ export default function AppLayout() {
                 <MenuItem component={RouterLink} to="/ventas" onClick={handleCloseOps}>
                   Ventas
                 </MenuItem>
-                <MenuItem component={RouterLink} to="/compras" onClick={handleCloseOps}>
-                  Compras
-                </MenuItem>
-                <MenuItem component={RouterLink} to="/clientes" onClick={handleCloseOps}>
-                  Clientes
-                </MenuItem>
-                <MenuItem component={RouterLink} to="/reportes" onClick={handleCloseOps}>
-                  Reportes
-                </MenuItem>
+                {isAdmin && (
+                  <MenuItem component={RouterLink} to="/compras" onClick={handleCloseOps}>
+                    Compras
+                  </MenuItem>
+                )}
+                {isAdmin && (
+                  <MenuItem component={RouterLink} to="/clientes" onClick={handleCloseOps}>
+                    Clientes
+                  </MenuItem>
+                )}
+                {isAdmin && (
+                  <MenuItem component={RouterLink} to="/reportes" onClick={handleCloseOps}>
+                    Reportes
+                  </MenuItem>
+                )}
               </Menu>
               
 
