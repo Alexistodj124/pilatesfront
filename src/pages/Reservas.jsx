@@ -313,7 +313,10 @@ export default function Reservas() {
   }
 
   const handleAddBooking = async () => {
-    if (!selectedSession || !newBooking.client_id) return
+    if (!selectedSession || !newBooking.client_id || !newBooking.membership_id) {
+      setError('Selecciona un cliente con membresía activa para reservar.')
+      return
+    }
     try {
       setError('')
       const payload = {
@@ -322,7 +325,6 @@ export default function Reservas() {
         membership_id: newBooking.membership_id ? Number(newBooking.membership_id) : null,
         estado: newBooking.estado,
       }
-      console.log(payload);
       const res = await fetch(`${API_BASE_URL}/bookings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -374,10 +376,9 @@ export default function Reservas() {
     const activeMembership = memberships.find(
       (m) => m.estado === 'Activa' && Number(m.client_id) === Number(clientId)
     )
-    console.log(activeMembership);
     setNewBooking({
       client_id: clientId,
-      membership_id: activeMembership.id,
+      membership_id: activeMembership ? activeMembership.id : '',
       estado: 'Reservada',
     })
   }
@@ -566,7 +567,13 @@ export default function Reservas() {
               onChange={(e) => setNewBooking({ ...newBooking, membership_id: e.target.value })}
               fullWidth
               disabled={!newBooking.client_id || availableMemberships.length === 0}
-              helperText={!newBooking.client_id ? 'Selecciona cliente para ver membresías' : ''}
+              helperText={
+                !newBooking.client_id
+                  ? 'Selecciona cliente para ver membresías'
+                  : availableMemberships.length === 0
+                  ? 'El cliente no tiene membresías activas'
+                  : ''
+              }
             >
               {availableMemberships.map((m) => {
                 const plan = planMap[m.plan_id]
@@ -576,9 +583,6 @@ export default function Reservas() {
                   </MenuItem>
                 )
               })}
-              <MenuItem value="">
-                Sin membresía
-              </MenuItem>
             </TextField>
           </Stack>
 
@@ -621,7 +625,7 @@ export default function Reservas() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDialogOpen(false)}>Cerrar</Button>
-          <Button variant="contained" onClick={handleAddBooking} disabled={!newBooking.client_id}>
+          <Button variant="contained" onClick={handleAddBooking} disabled={!newBooking.client_id || !newBooking.membership_id}>
             Agregar
           </Button>
         </DialogActions>
