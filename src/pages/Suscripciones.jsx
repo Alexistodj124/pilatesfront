@@ -351,6 +351,7 @@ export default function Suscripciones() {
               <TableCell>Plan</TableCell>
               <TableCell>Estado</TableCell>
               <TableCell>Vence</TableCell>
+              <TableCell align="right">Saldo</TableCell>
               <TableCell align="right">Clases usadas</TableCell>
             </TableRow>
           </TableHead>
@@ -373,12 +374,24 @@ export default function Suscripciones() {
                   )}
                 </TableCell>
                 <TableCell>{c.vence ? c.vence.format('YYYY-MM-DD') : '—'}</TableCell>
+                <TableCell align="right">
+                  {(() => {
+                    const balance = typeof c.balance === 'number' ? c.balance : typeof c.saldo === 'number' ? c.saldo : null
+                    const display = balance === null ? '—' : `Q${balance.toFixed(2)}`
+                    const isPending = balance !== null && balance > 0
+                    return (
+                      <Typography color={isPending ? 'error.main' : 'text.primary'} fontWeight={isPending ? 700 : 400}>
+                        {display}
+                      </Typography>
+                    )
+                  })()}
+                </TableCell>
                 <TableCell align="right">{c.membership?.clases_usadas ?? '—'}</TableCell>
               </TableRow>
             ))}
             {enhancedClients.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} align="center">
+                <TableCell colSpan={7} align="center">
                   <Typography color="text.secondary">
                     {loading ? 'Cargando...' : 'No hay clientes con suscripción aún.'}
                   </Typography>
