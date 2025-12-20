@@ -758,30 +758,27 @@ export default function Reservas() {
                 ))}
               </TextField>
             )}
+            <TextField
+              label="Nombre de la clase"
+              value={newClassForm.nombre}
+              onChange={(e) => setNewClassForm({ ...newClassForm, nombre: e.target.value })}
+              fullWidth
+            />
             {newClassForm.tipo === 'recurrent' && (
-              <>
-                <TextField
-                  label="Nombre de la clase"
-                  value={newClassForm.nombre}
-                  onChange={(e) => setNewClassForm({ ...newClassForm, nombre: e.target.value })}
-                  fullWidth
-                />
-                <TextField
-                  select
-                  label="Día de la semana (0=Domingo)"
-                  value={newClassForm.dia_semana}
-                  onChange={(e) => setNewClassForm({ ...newClassForm, dia_semana: Number(e.target.value) })}
-                  fullWidth
-                >
-                  <MenuItem value={1}>Lunes</MenuItem>
-                  <MenuItem value={2}>Martes</MenuItem>
-                  <MenuItem value={3}>Miércoles</MenuItem>
-                  <MenuItem value={4}>Jueves</MenuItem>
-                  <MenuItem value={5}>Viernes</MenuItem>
-                  <MenuItem value={6}>Sábado</MenuItem>
-                  <MenuItem value={0}>Domingo</MenuItem>
-                </TextField>
-              </>
+              <TextField
+                select
+                label="Día de la semana (0=Domingo)"
+                value={newClassForm.dia_semana}
+                onChange={(e) => setNewClassForm({ ...newClassForm, dia_semana: Number(e.target.value) })}
+                fullWidth
+              >
+                <MenuItem value={1}>Lunes</MenuItem>
+                <MenuItem value={2}>Martes</MenuItem>
+                <MenuItem value={3}>Miércoles</MenuItem>
+                <MenuItem value={4}>Jueves</MenuItem>
+                <MenuItem value={5}>Viernes</MenuItem>
+                <MenuItem value={6}>Sábado</MenuItem>
+              </TextField>
             )}
             <TextField
               label="Fecha"
