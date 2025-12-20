@@ -45,7 +45,7 @@ const buildNextSixDays = () => {
 }
 
 export default function Asistencias() {
-  const FINE_AMOUNT = 100
+  const FINE_AMOUNT = 150
   const [days] = React.useState(buildNextSixDays)
   const [selectedDayIndex, setSelectedDayIndex] = React.useState(0)
   const selectedDay = days[selectedDayIndex] ?? days[0]
