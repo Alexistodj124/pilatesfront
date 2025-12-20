@@ -22,6 +22,7 @@ const formatDateTime = (value) => (value ? dayjs(value).format('YYYY-MM-DD HH:mm
 
 export default function ReportesPagos() {
   const [payments, setPayments] = React.useState([])
+  const [clients, setClients] = React.useState([])
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState('')
   const [range, setRange] = React.useState({
@@ -36,13 +37,17 @@ export default function ReportesPagos() {
       const params = new URLSearchParams()
       if (range.inicio) params.append('inicio', range.inicio)
       if (range.fin) params.append('fin', range.fin)
-      const res = await fetch(`${API_BASE_URL}/payments?${params.toString()}`)
-      if (!res.ok) {
-        const text = await res.text()
+      const [paymentsRes, clientsRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/payments?${params.toString()}`),
+        fetch(`${API_BASE_URL}/clients`),
+      ])
+      if (!paymentsRes.ok || !clientsRes.ok) {
+        const text = await paymentsRes.text()
         throw new Error(text || 'No se pudieron cargar los pagos')
       }
-      const data = await res.json()
-      setPayments(data)
+      const [paymentsData, clientsData] = await Promise.all([paymentsRes.json(), clientsRes.json()])
+      setPayments(paymentsData)
+      setClients(clientsData)
     } catch (err) {
       console.error(err)
       setError('No se pudieron cargar los pagos')
@@ -56,6 +61,7 @@ export default function ReportesPagos() {
   }, [loadPayments])
 
   const totalAmount = payments.reduce((sum, p) => sum + (p.amount || 0), 0)
+  const clientMap = React.useMemo(() => Object.fromEntries(clients.map((c) => [c.id, c])), [clients])
 
   return (
     <Box>
@@ -138,8 +144,7 @@ export default function ReportesPagos() {
               <TableCell>Tipo</TableCell>
               <TableCell>Método</TableCell>
               <TableCell>Referencia</TableCell>
-              <TableCell>Movement ID</TableCell>
-              <TableCell>Membresía ID</TableCell>
+              <TableCell>Cliente</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -150,8 +155,7 @@ export default function ReportesPagos() {
                 <TableCell>{p.payment_type || '—'}</TableCell>
                 <TableCell>{p.payment_method || '—'}</TableCell>
                 <TableCell>{p.payment_reference || '—'}</TableCell>
-                <TableCell>{p.movement_id || '—'}</TableCell>
-                <TableCell>{p.membership_id || '—'}</TableCell>
+                <TableCell>{clientMap[p.client_id]?.nombre || `Cliente ${p.client_id || '—'}`}</TableCell>
               </TableRow>
             ))}
             {payments.length === 0 && (
