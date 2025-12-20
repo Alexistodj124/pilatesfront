@@ -65,6 +65,11 @@ export default function AppLayout() {
                     Reportes
                   </MenuItem>
                 )}
+                {isAdmin && (
+                  <MenuItem component={RouterLink} to="/reportespagos" onClick={handleCloseOps}>
+                    Reportes de pagos
+                  </MenuItem>
+                )}
               </Menu>
 
               <Button color="inherit" onClick={handleOpenOps}>
