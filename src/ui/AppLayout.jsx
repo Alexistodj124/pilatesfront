@@ -57,11 +57,9 @@ export default function AppLayout() {
                 <MenuItem component={RouterLink} to="/asistencias" onClick={handleCloseAgenda}>
                   Asistencias
                 </MenuItem>
-                {isAdmin && (
-                  <MenuItem component={RouterLink} to="/suscripciones" onClick={handleCloseAgenda}>
-                    Suscripciones
-                  </MenuItem>
-                )}
+                <MenuItem component={RouterLink} to="/suscripciones" onClick={handleCloseAgenda}>
+                  Suscripciones
+                </MenuItem>
                 {isAdmin && (
                   <MenuItem component={RouterLink} to="/reportesclases" onClick={handleCloseOps}>
                     Reportes

@@ -148,7 +148,6 @@ export default function Asistencias() {
     })
     return map
   }, [memberships])
-  const EMPTY_BOOKINGS = React.useMemo(() => [], [])
 
   const latestMembershipForClient = React.useCallback(
     (clientId) => {
@@ -186,7 +185,7 @@ export default function Asistencias() {
   }, [sessionsForDate, selectedSessionId])
 
   const selectedSession = sessions.find((s) => s.id === selectedSessionId)
-  const sessionBookings = bookingsBySession[selectedSessionId] || EMPTY_BOOKINGS
+  const sessionBookings = bookingsBySession[selectedSessionId] || []
   const isCompleted = (booking) => (booking?.estado || '').toLowerCase() === 'completada'
   const allSubmitted = sessionBookings.length > 0 && sessionBookings.every((b) => isCompleted(b))
 
@@ -199,12 +198,13 @@ export default function Asistencias() {
   }
 
   React.useEffect(() => {
+    const bookingsForSession = bookingsBySession[selectedSessionId] || []
     const initialAttendance = {}
-    sessionBookings.forEach((booking) => {
+    bookingsForSession.forEach((booking) => {
       initialAttendance[booking.id] = typeof booking.asistio === 'boolean' ? booking.asistio : null
     })
     setPendingAttendance(initialAttendance)
-  }, [sessionBookings])
+  }, [bookingsBySession, selectedSessionId])
 
   const handleSelectAttendance = (bookingId, value) => {
     setPendingAttendance((prev) => {
@@ -220,7 +220,7 @@ export default function Asistencias() {
     const updates = sessionBookings.filter((booking) => {
       if (isCompleted(booking)) return false
       const value = pendingAttendance[booking.id]
-      return typeof value === 'boolean' && value !== booking.asistio
+      return typeof value === 'boolean'
     })
     const updatesPayload = {}
     updates.forEach((booking) => {
@@ -235,6 +235,7 @@ export default function Asistencias() {
     try {
       for (const booking of updates) {
         const payload = updatesPayload[booking.id]
+        console.log('Enviando asistencia', { bookingId: booking.id, payload })
         const res = await fetch(`${API_BASE_URL}/bookings/${booking.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -242,6 +243,7 @@ export default function Asistencias() {
         })
         const text = await res.text()
         if (!res.ok) {
+          console.error('Error backend asistencia:', text)
           throw new Error(text || 'No se pudo actualizar asistencia')
         }
 
