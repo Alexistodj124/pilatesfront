@@ -526,7 +526,7 @@ export default function Reservas() {
                 const isCanceled = estado === 'cancelada'
                 const isFull = booked >= session.capacidad
                 const template = session.template_id ? templateMap[session.template_id] : null
-                const name = template?.nombre || `Clase #${session.id}`
+                const name = session?.nombre || `Clase #${session.id}`
                 const chipLabel = isCanceled
                   ? 'Cancelada'
                   : isFull
