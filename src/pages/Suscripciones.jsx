@@ -36,7 +36,7 @@ export default function Suscripciones() {
   const [error, setError] = React.useState('')
   const [paymentSaving, setPaymentSaving] = React.useState(false)
   const [paymentError, setPaymentError] = React.useState('')
-  const [paymentForm, setPaymentForm] = React.useState({ client: null, amount: '' })
+  const [paymentForm, setPaymentForm] = React.useState({ client: null, amount: '', payment_method: 'efectivo', payment_reference: '' })
   const [search, setSearch] = React.useState('')
 
   const [openClientDialog, setOpenClientDialog] = React.useState(false)
@@ -305,6 +305,8 @@ export default function Suscripciones() {
     setPaymentForm({
       client,
       amount: balance && balance > 0 ? balance.toFixed(2) : '',
+      payment_method: 'efectivo',
+      payment_reference: '',
     })
     setOpenPaymentDialog(true)
   }
@@ -356,6 +358,7 @@ export default function Suscripciones() {
     if (!paymentForm.client) return
     const balance = getBalance(paymentForm.client)
     const amountNumber = Number(paymentForm.amount)
+    const needsReference = paymentForm.payment_method === 'transferencia' || paymentForm.payment_method === 'tarjeta'
 
     if (!paymentForm.amount || Number.isNaN(amountNumber) || amountNumber <= 0) {
       setPaymentError('Ingresa un monto válido')
@@ -363,6 +366,10 @@ export default function Suscripciones() {
     }
     if (balance !== null && amountNumber > balance) {
       setPaymentError('El pago no puede ser mayor al saldo pendiente')
+      return
+    }
+    if (needsReference && !paymentForm.payment_reference.trim()) {
+      setPaymentError('Ingresa la referencia del pago')
       return
     }
 
@@ -375,6 +382,8 @@ export default function Suscripciones() {
         client_id: paymentForm.client.id,
         amount: amountNumber,
         tipo: 'payment',
+        payment_method: paymentForm.payment_method,
+        payment_reference: paymentForm.payment_reference || null,
         nota: 'Pago aplicado a saldo',
       }
 
@@ -707,6 +716,25 @@ export default function Suscripciones() {
               error={!!paymentError}
               helperText={paymentError || 'El monto no puede superar el saldo pendiente.'}
             />
+            <TextField
+              select
+              label="Método de pago"
+              value={paymentForm.payment_method}
+              onChange={(e) => setPaymentForm({ ...paymentForm, payment_method: e.target.value })}
+              fullWidth
+            >
+              <MenuItem value="efectivo">Efectivo</MenuItem>
+              <MenuItem value="transferencia">Transferencia</MenuItem>
+              <MenuItem value="tarjeta">Tarjeta</MenuItem>
+            </TextField>
+            {(paymentForm.payment_method === 'transferencia' || paymentForm.payment_method === 'tarjeta') && (
+              <TextField
+                label="Referencia"
+                value={paymentForm.payment_reference}
+                onChange={(e) => setPaymentForm({ ...paymentForm, payment_reference: e.target.value })}
+                fullWidth
+              />
+            )}
           </Stack>
         </DialogContent>
         <DialogActions>
