@@ -37,6 +37,8 @@ export default function Suscripciones() {
   const [paymentSaving, setPaymentSaving] = React.useState(false)
   const [paymentError, setPaymentError] = React.useState('')
   const [paymentForm, setPaymentForm] = React.useState({ client: null, amount: '', payment_method: 'efectivo', payment_reference: '' })
+  const [membershipPaymentForm, setMembershipPaymentForm] = React.useState({ payment_method: 'efectivo', payment_reference: '' })
+  const [openMembershipPaymentDialog, setOpenMembershipPaymentDialog] = React.useState(false)
   const [search, setSearch] = React.useState('')
 
   const [openClientDialog, setOpenClientDialog] = React.useState(false)
@@ -326,9 +328,20 @@ export default function Suscripciones() {
       setError('Selecciona un plan para crear la membresía')
       return
     }
+    const selectedPlan = plans.find((p) => Number(p.id) === Number(newMembershipForm.plan_id))
+    if (!selectedPlan) {
+      setError('Selecciona un plan válido')
+      return
+    }
+
+    const needsReference = ['transferencia', 'tarjeta'].includes(membershipPaymentForm.payment_method)
+    if (needsReference && !membershipPaymentForm.payment_reference.trim()) {
+      setError('Ingresa la referencia del pago')
+      return
+    }
+
     try {
       setError('')
-      const selectedPlan = plans.find((p) => Number(p.id) === Number(newMembershipForm.plan_id))
       const start = dayjs(newMembershipForm.fecha_inicio)
       const end = selectedPlan?.duracion_dias ? start.add(selectedPlan.duracion_dias, 'day') : start.add(30, 'day')
 
@@ -342,11 +355,16 @@ export default function Suscripciones() {
           fecha_fin: end.format('YYYY-MM-DD'),
           estado: newMembershipForm.estado,
           clases_usadas: 0,
+          payment_amount: selectedPlan?.precio ?? null,
+          payment_method: membershipPaymentForm.payment_method,
+          payment_reference: needsReference ? membershipPaymentForm.payment_reference : null,
         }),
       })
       if (!resMembership.ok) throw new Error('No se pudo crear la membresía')
 
+      setOpenMembershipPaymentDialog(false)
       setOpenMembershipsDialog(false)
+      setMembershipPaymentForm({ payment_method: 'efectivo', payment_reference: '' })
       loadData()
     } catch (err) {
       console.error(err)
@@ -823,8 +841,66 @@ export default function Suscripciones() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenMembershipsDialog(false)}>Cancelar</Button>
-          <Button variant="contained" onClick={handleCreateMembership} disabled={!membershipsDialogClient}>
+          <Button
+            variant="contained"
+            onClick={() => {
+              setMembershipPaymentForm({ payment_method: 'efectivo', payment_reference: '' })
+              setOpenMembershipPaymentDialog(true)
+            }}
+            disabled={!membershipsDialogClient}
+          >
             Guardar membresía
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={openMembershipPaymentDialog} onClose={() => setOpenMembershipPaymentDialog(false)} fullWidth maxWidth="xs">
+        <DialogTitle>Confirmar pago de membresía</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2}>
+            <Typography variant="body1" fontWeight={700}>
+              Cliente: {membershipsDialogClient?.nombre || '—'}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Plan: {(() => {
+                const plan = plans.find((p) => Number(p.id) === Number(newMembershipForm.plan_id))
+                return plan ? `${plan.nombre} · Q${plan.precio}` : 'Selecciona un plan'
+              })()}
+            </Typography>
+            <Typography variant="h6" fontWeight={700}>
+              Total: Q
+              {(() => {
+                const plan = plans.find((p) => Number(p.id) === Number(newMembershipForm.plan_id))
+                return plan?.precio ?? 0
+              })()}
+            </Typography>
+            <TextField
+              select
+              label="Método de pago"
+              value={membershipPaymentForm.payment_method}
+              onChange={(e) => setMembershipPaymentForm({ ...membershipPaymentForm, payment_method: e.target.value })}
+              fullWidth
+            >
+              <MenuItem value="efectivo">Efectivo</MenuItem>
+              <MenuItem value="transferencia">Transferencia</MenuItem>
+              <MenuItem value="tarjeta">Tarjeta</MenuItem>
+            </TextField>
+            {(membershipPaymentForm.payment_method === 'transferencia' || membershipPaymentForm.payment_method === 'tarjeta') && (
+              <TextField
+                label="Referencia"
+                value={membershipPaymentForm.payment_reference}
+                onChange={(e) => setMembershipPaymentForm({ ...membershipPaymentForm, payment_reference: e.target.value })}
+                fullWidth
+              />
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenMembershipPaymentDialog(false)} disabled={false}>
+            Cancelar
+          </Button>
+          <Button variant="contained" onClick={handleCreateMembership}>
+            Confirmar y guardar
           </Button>
         </DialogActions>
       </Dialog>
