@@ -56,9 +56,9 @@ const router = createBrowserRouter(
         {
           path: 'suscripciones',
           element: (
-            <RequireAdmin>
+            <RequireAuth>
               <Suscripciones />
-            </RequireAdmin>
+            </RequireAuth>
           ),
         },
         {

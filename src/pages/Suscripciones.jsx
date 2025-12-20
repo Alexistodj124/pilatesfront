@@ -23,10 +23,12 @@ import {
 } from '@mui/material'
 import dayjs from 'dayjs'
 import { API_BASE_URL } from '../config/api'
+import { useAuth } from '../context/AuthContext'
 
 const parseDate = (value) => (value ? dayjs(value) : null)
 
 export default function Suscripciones() {
+  const { isAdmin } = useAuth()
   const [plans, setPlans] = React.useState([])
   const [clients, setClients] = React.useState([])
   const [memberships, setMemberships] = React.useState([])
@@ -472,9 +474,11 @@ export default function Suscripciones() {
               sx={{ mb: 1 }}
             />
           ))}
-          <Button size="small" variant="outlined" onClick={() => setOpenPlanDialog(true)}>
-            Nuevo plan
-          </Button>
+          {isAdmin && (
+            <Button size="small" variant="outlined" onClick={() => setOpenPlanDialog(true)}>
+              Nuevo plan
+            </Button>
+          )}
         </Stack>
       </Paper>
 
