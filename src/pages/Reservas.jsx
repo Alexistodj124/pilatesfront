@@ -132,6 +132,7 @@ export default function Reservas() {
             hora_fin: tpl.hora_fin,
             coach_id: tpl.coach_id,
             capacidad: tpl.capacidad,
+            nombre: tpl.nombre || null,
             estado: 'Programada',
             nota: null,
           }
@@ -272,6 +273,7 @@ export default function Reservas() {
           capacidad: Number(newClassForm.capacidad),
           estado: newClassForm.estado,
           template_id: newClassForm.template_id || null,
+          nombre: newClassForm.nombre || null,
           nota: newClassForm.nota || null,
         }
         const res = await fetch(`${API_BASE_URL}/class-sessions`, {
