@@ -382,7 +382,8 @@ export default function Inventory() {
   const discountValue = React.useMemo(() => {
     const parsed = parseFloat(discount)
     if (Number.isNaN(parsed) || parsed < 0) return 0
-    return Math.min(parsed, subtotal)
+    const percent = Math.min(parsed, 100)
+    return subtotal * (percent / 100)
   }, [discount, subtotal])
   const totalWithDiscount = subtotal - discountValue
 
@@ -424,10 +425,9 @@ export default function Inventory() {
       return
     }
 
-    // 0) Abrimos la ventana de impresión AQUÍ (gesto de usuario)
-    const printWindow = window.open('', '', 'width=400,height=600')
-    // Si el navegador bloquea el popup, printWindow será null
-    // Igual seguimos con la creación de la orden; sólo que no imprimirá.
+    // 0) Impresión desactivada (conservamos el código, pero no abrimos ventana)
+    const shouldPrint = false
+    const printWindow = shouldPrint ? window.open('', '', 'width=400,height=600') : null
 
     // 1) Cliente: existente o nuevo
     let clientePayload
@@ -465,6 +465,8 @@ export default function Inventory() {
       items: itemsPayload,
       descuento: discountValue,
       total: totalWithDiscount,
+      tipo_pago: payment.tipo_pago || null,
+      referencia_pago: payment.referencia_pago || null,
     }
 
     console.log('Payload para /ordenes:', body)
@@ -511,10 +513,8 @@ export default function Inventory() {
       const ticketClienteTelefono = clientePayload.telefono ?? clienteSeleccionado?.telefono ?? ''
 
       const subtotalTicket = cart.reduce((sum, it) => sum + it.precio * it.qty, 0)
-      const discountApplied = Math.min(
-        Math.max(parseFloat(discount) || 0, 0),
-        subtotalTicket
-      )
+      const discountPercent = Math.max(Math.min(parseFloat(discount) || 0, 100), 0)
+      const discountApplied = subtotalTicket * (discountPercent / 100)
       const totalConDescuento = subtotalTicket - discountApplied
       const discountFromBackend = typeof data.descuento === 'number' ? data.descuento : discountApplied
       const totalFromBackend = typeof data.total === 'number' ? data.total : totalConDescuento
@@ -790,17 +790,17 @@ export default function Inventory() {
               </Typography>
               <TextField
                 size="small"
-                label="Descuento"
+                label="Descuento %"
                 value={discount}
                 onChange={(e) => setDiscount(e.target.value)}
                 type="number"
-                inputProps={{ min: 0, step: '0.01' }}
+                inputProps={{ min: 0, max: 100, step: '0.01' }}
                 sx={{ width: 140 }}
               />
             </Stack>
             {discountValue > 0 && (
               <Typography variant="caption" color="text.secondary">
-                Subtotal Q {subtotal.toFixed(2)} - Descuento Q {discountValue.toFixed(2)}
+                Subtotal Q {subtotal.toFixed(2)} - Descuento ({discount || 0}%) Q {discountValue.toFixed(2)}
               </Typography>
             )}
             <Button
