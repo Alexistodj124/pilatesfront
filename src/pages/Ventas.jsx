@@ -465,8 +465,8 @@ export default function Inventory() {
       items: itemsPayload,
       descuento: discountValue,
       total: totalWithDiscount,
-      tipo_pago: payment.tipo_pago || null,
-      referencia_pago: payment.referencia_pago || null,
+      tipo_pago: venta.pago || null,
+      referencia_pago: venta.referencia || null,
     }
 
     console.log('Payload para /ordenes:', body)

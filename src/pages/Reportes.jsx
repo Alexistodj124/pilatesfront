@@ -297,31 +297,35 @@ export default function Reportes() {
 
         <TableContainer component={Paper} sx={{ borderRadius: 3 }}>
           <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Fecha</TableCell>
-                <TableCell>No. Orden</TableCell>
-                <TableCell>Cliente</TableCell>
-                <TableCell align="right">Total</TableCell>
-                <TableCell align="center">Acciones</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filtered.map((o) => (
-                <TableRow
-                  key={o.id}
-                  hover
-                  sx={{ cursor: 'pointer' }}
-                  onClick={() => setOrdenSel(o)}
-                >
-                  <TableCell>{dayjs(o.fecha).format('YYYY-MM-DD HH:mm')}</TableCell>
-                  <TableCell>{o.codigo ?? o.id}</TableCell>
-                  <TableCell>{o.cliente?.nombre}</TableCell>
-                  <TableCell align="right">
-                    Q {calcTotal(o.items || [], getOrdenDescuento(o)).toFixed(2)}
-                  </TableCell>
-                  <TableCell align="center">
-                    <IconButton
+              <TableHead>
+                <TableRow>
+                  <TableCell>Fecha</TableCell>
+                  <TableCell>No. Orden</TableCell>
+                  <TableCell>Cliente</TableCell>
+                  <TableCell>Método</TableCell>
+                  <TableCell>Referencia</TableCell>
+                  <TableCell align="right">Total</TableCell>
+                  <TableCell align="center">Acciones</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {filtered.map((o) => (
+                  <TableRow
+                    key={o.id}
+                    hover
+                    sx={{ cursor: 'pointer' }}
+                    onClick={() => setOrdenSel(o)}
+                  >
+                    <TableCell>{dayjs(o.fecha).format('YYYY-MM-DD HH:mm')}</TableCell>
+                    <TableCell>{o.codigo ?? o.id}</TableCell>
+                    <TableCell>{o.cliente?.nombre}</TableCell>
+                    <TableCell>{o.tipo_pago || '—'}</TableCell>
+                    <TableCell>{o.referencia_pago || '—'}</TableCell>
+                    <TableCell align="right">
+                      Q {calcTotal(o.items || [], getOrdenDescuento(o)).toFixed(2)}
+                    </TableCell>
+                    <TableCell align="center">
+                      <IconButton
                       color="error"
                       size="small"
                       onClick={(e) => {
@@ -359,6 +363,12 @@ export default function Reportes() {
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 Cliente: {ordenSel?.cliente?.nombre} — {ordenSel?.cliente?.telefono}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Método de pago: {ordenSel?.tipo_pago || '—'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Referencia: {ordenSel?.referencia_pago || '—'}
               </Typography>
             </Stack>
 
