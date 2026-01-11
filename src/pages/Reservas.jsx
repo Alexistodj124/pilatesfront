@@ -73,6 +73,17 @@ export default function Reservas() {
   const [generating, setGenerating] = React.useState(false)
   const [cancelDialogOpen, setCancelDialogOpen] = React.useState(false)
   const [cancelSaving, setCancelSaving] = React.useState(false)
+  const [editDialogOpen, setEditDialogOpen] = React.useState(false)
+  const [editSaving, setEditSaving] = React.useState(false)
+  const [editForm, setEditForm] = React.useState({
+    fecha: dayjs().format('YYYY-MM-DD'),
+    hora_inicio: '08:00',
+    hora_fin: '09:00',
+    coach_id: '',
+    capacidad: 8,
+    estado: 'Programada',
+    nota: '',
+  })
 
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [selectedSession, setSelectedSession] = React.useState(null)
@@ -250,6 +261,20 @@ export default function Reservas() {
     setDialogOpen(true)
   }
 
+  const handleOpenEditDialog = (session) => {
+    if (!session) return
+    setEditForm({
+      fecha: session.fecha ? dayjs(session.fecha).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'),
+      hora_inicio: session.hora_inicio ? session.hora_inicio.slice(0, 5) : '08:00',
+      hora_fin: session.hora_fin ? session.hora_fin.slice(0, 5) : '09:00',
+      coach_id: session.coach_id ?? '',
+      capacidad: session.capacidad ?? 8,
+      estado: session.estado || 'Programada',
+      nota: session.nota || '',
+    })
+    setEditDialogOpen(true)
+  }
+
   const handleTemplateSelect = (templateId) => {
     const tplId = templateId ? Number(templateId) : ''
     const tpl = tplId ? templateMap[tplId] : null
@@ -400,6 +425,38 @@ export default function Reservas() {
       setError(err.message || 'No se pudo cancelar la clase')
     } finally {
       setCancelSaving(false)
+    }
+  }
+
+  const handleSaveEditSession = async () => {
+    if (!selectedSession) return
+    try {
+      setEditSaving(true)
+      setError('')
+      const payload = {
+        fecha: editForm.fecha,
+        hora_inicio: `${editForm.hora_inicio}:00`,
+        hora_fin: `${editForm.hora_fin}:00`,
+        coach_id: Number(editForm.coach_id),
+        capacidad: Number(editForm.capacidad),
+        estado: editForm.estado,
+        nota: editForm.nota || null,
+      }
+      const res = await fetch(`${API_BASE_URL}/class-sessions/${selectedSession.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) throw new Error('No se pudo actualizar la clase')
+      const updated = await res.json()
+      setSelectedSession(updated)
+      setEditDialogOpen(false)
+      loadData()
+    } catch (err) {
+      console.error(err)
+      setError(err.message || 'No se pudo actualizar la clase')
+    } finally {
+      setEditSaving(false)
     }
   }
 
@@ -691,14 +748,23 @@ export default function Reservas() {
         <DialogActions>
           <Stack direction="row" spacing={1} sx={{ width: '100%' }} justifyContent="space-between">
             {isAdmin ? (
-              <Button
-                color="error"
-                variant="outlined"
-                onClick={() => setCancelDialogOpen(true)}
-                disabled={!selectedSession || selectedSession.estado === 'Cancelada'}
-              >
-                Cancelar clase
-              </Button>
+              <Stack direction="row" spacing={1}>
+                <Button
+                  variant="outlined"
+                  onClick={() => handleOpenEditDialog(selectedSession)}
+                  disabled={!selectedSession}
+                >
+                  Editar clase
+                </Button>
+                <Button
+                  color="error"
+                  variant="outlined"
+                  onClick={() => setCancelDialogOpen(true)}
+                  disabled={!selectedSession || selectedSession.estado === 'Cancelada'}
+                >
+                  Cancelar clase
+                </Button>
+              </Stack>
             ) : (
               <Box />
             )}
@@ -725,6 +791,98 @@ export default function Reservas() {
           </Button>
           <Button variant="contained" color="error" onClick={handleConfirmCancelSession} disabled={cancelSaving}>
             Sí, cancelar clase
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Editar clase</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2}>
+            <TextField
+              label="Fecha"
+              type="date"
+              value={editForm.fecha}
+              onChange={(e) => setEditForm({ ...editForm, fecha: e.target.value })}
+              InputLabelProps={{ shrink: true }}
+              fullWidth
+            />
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+              <TextField
+                label="Hora inicio"
+                type="time"
+                value={editForm.hora_inicio}
+                onChange={(e) => setEditForm({ ...editForm, hora_inicio: e.target.value })}
+                InputLabelProps={{ shrink: true }}
+                fullWidth
+              />
+              <TextField
+                label="Hora fin"
+                type="time"
+                value={editForm.hora_fin}
+                onChange={(e) => setEditForm({ ...editForm, hora_fin: e.target.value })}
+                InputLabelProps={{ shrink: true }}
+                fullWidth
+              />
+            </Stack>
+            <TextField
+              select
+              label="Coach"
+              value={editForm.coach_id}
+              onChange={(e) => setEditForm({ ...editForm, coach_id: e.target.value })}
+              fullWidth
+            >
+              {coaches.map((coach) => (
+                <MenuItem key={coach.id} value={coach.id}>
+                  {coach.nombre}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              label="Capacidad"
+              type="number"
+              value={editForm.capacidad}
+              onChange={(e) => setEditForm({ ...editForm, capacidad: e.target.value })}
+              fullWidth
+            />
+            <TextField
+              select
+              label="Estado"
+              value={editForm.estado}
+              onChange={(e) => setEditForm({ ...editForm, estado: e.target.value })}
+              fullWidth
+            >
+              <MenuItem value="Programada">Programada</MenuItem>
+              <MenuItem value="Cancelada">Cancelada</MenuItem>
+              <MenuItem value="Completada">Completada</MenuItem>
+            </TextField>
+            <TextField
+              label="Nota"
+              value={editForm.nota}
+              onChange={(e) => setEditForm({ ...editForm, nota: e.target.value })}
+              fullWidth
+              multiline
+              minRows={2}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditDialogOpen(false)} disabled={editSaving}>
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSaveEditSession}
+            disabled={
+              editSaving ||
+              !editForm.fecha ||
+              !editForm.hora_inicio ||
+              !editForm.hora_fin ||
+              !editForm.coach_id ||
+              !editForm.capacidad
+            }
+          >
+            Guardar cambios
           </Button>
         </DialogActions>
       </Dialog>
