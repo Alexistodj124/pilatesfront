@@ -47,7 +47,13 @@ const buildNextSixDays = () => {
   return days
 }
 
-const formatTime = (value) => (value ? value.slice(0, 5) : '—')
+const formatTime = (value) => {
+  if (!value) return '—'
+  const trimmed = value.slice(0, 5)
+  const parsed = dayjs(`2000-01-01T${trimmed}`)
+  if (!parsed.isValid()) return trimmed
+  return parsed.format('hh:mm A')
+}
 
 export default function Reservas() {
   const { isAdmin } = useAuth()
