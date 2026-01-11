@@ -898,19 +898,6 @@ export default function Inventory() {
 
             {!esClienteExistente && (
               <TextField
-                label="Correo electrónico"
-                value={cliente.email}
-                onChange={(e) =>
-                  setCliente(prev => ({ ...prev, email: e.target.value }))
-                }
-                fullWidth
-                type="email"
-                placeholder="cliente@correo.com"
-              />
-            )}
-
-            {!esClienteExistente && (
-              <TextField
                 label="NIT"
                 value={cliente.nit}
                 onChange={(e) =>
