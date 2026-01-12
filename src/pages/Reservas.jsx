@@ -75,6 +75,9 @@ export default function Reservas() {
   const [cancelSaving, setCancelSaving] = React.useState(false)
   const [editDialogOpen, setEditDialogOpen] = React.useState(false)
   const [editSaving, setEditSaving] = React.useState(false)
+  const [templateEditOpen, setTemplateEditOpen] = React.useState(false)
+  const [templateEditSaving, setTemplateEditSaving] = React.useState(false)
+  const [templateEdits, setTemplateEdits] = React.useState({})
   const [editForm, setEditForm] = React.useState({
     fecha: dayjs().format('YYYY-MM-DD'),
     hora_inicio: '08:00',
@@ -239,6 +242,23 @@ export default function Reservas() {
       .sort((a, b) => (a.hora_inicio || '').localeCompare(b.hora_inicio || ''))
   }, [sessions, selectedDay])
 
+  const templatesForSelectedDay = React.useMemo(() => {
+    if (!selectedDay) return []
+    return templates.filter((tpl) => {
+      const estado = (tpl.estado || '').toString().toLowerCase()
+      return Number(tpl.dia_semana) === selectedDay.date.day() && estado === 'programada'
+    })
+  }, [templates, selectedDay])
+
+  const templateStatusOptions = React.useMemo(() => {
+    const defaults = ['Programada', 'Cancelada']
+    const options = new Set(defaults)
+    templates.forEach((tpl) => {
+      if (tpl.estado) options.add(tpl.estado)
+    })
+    return Array.from(options)
+  }, [templates])
+
   const bookingsBySession = React.useMemo(() => {
     const map = {}
     bookings.forEach((b) => {
@@ -273,6 +293,15 @@ export default function Reservas() {
       nota: session.nota || '',
     })
     setEditDialogOpen(true)
+  }
+
+  const handleOpenTemplateEdit = () => {
+    const nextEdits = {}
+    templatesForSelectedDay.forEach((tpl) => {
+      nextEdits[tpl.id] = tpl.estado || ''
+    })
+    setTemplateEdits(nextEdits)
+    setTemplateEditOpen(true)
   }
 
   const handleTemplateSelect = (templateId) => {
@@ -460,6 +489,34 @@ export default function Reservas() {
     }
   }
 
+  const handleSaveTemplateStatuses = async () => {
+    if (templatesForSelectedDay.length === 0) return
+    try {
+      setTemplateEditSaving(true)
+      setError('')
+      const updates = templatesForSelectedDay.filter((tpl) => templateEdits[tpl.id] !== (tpl.estado || ''))
+      await Promise.all(
+        updates.map(async (tpl) => {
+          const payload = { estado: templateEdits[tpl.id] }
+          const res = await fetch(`${API_BASE_URL}/class-templates/${tpl.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+          if (!res.ok) throw new Error('No se pudieron actualizar las plantillas')
+          return res.json()
+        })
+      )
+      setTemplateEditOpen(false)
+      loadData()
+    } catch (err) {
+      console.error(err)
+      setError(err.message || 'No se pudieron actualizar las plantillas')
+    } finally {
+      setTemplateEditSaving(false)
+    }
+  }
+
   const attendees = selectedSession ? bookingsBySession[selectedSession.id] || [] : []
   const capacityUsed = selectedSession ? attendees.length : 0
 
@@ -514,9 +571,14 @@ export default function Reservas() {
             Generar Clases
           </Button>
           {isAdmin && (
-            <Button variant="contained" onClick={handleOpenNewClass}>
-              Nueva clase
-            </Button>
+            <>
+              <Button variant="outlined" onClick={handleOpenTemplateEdit} disabled={templatesForSelectedDay.length === 0}>
+                Editar plantillas
+              </Button>
+              <Button variant="contained" onClick={handleOpenNewClass}>
+                Nueva clase
+              </Button>
+            </>
           )}
         </Stack>
       </Stack>
@@ -1050,6 +1112,57 @@ export default function Reservas() {
             }
           >
             Crear clase
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={templateEditOpen} onClose={() => setTemplateEditOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Editar plantillas del día</DialogTitle>
+        <DialogContent dividers>
+          {templatesForSelectedDay.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">
+              No hay plantillas para este día.
+            </Typography>
+          ) : (
+            <Stack spacing={2}>
+              {templatesForSelectedDay.map((tpl) => (
+                <Stack key={tpl.id} direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ sm: 'center' }}>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="subtitle2" fontWeight={600}>
+                      {tpl.nombre || `Plantilla #${tpl.id}`}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {formatTime(tpl.hora_inicio)} - {formatTime(tpl.hora_fin)} · Coach: {coachMap[tpl.coach_id]?.nombre || `ID ${tpl.coach_id}`}
+                    </Typography>
+                  </Box>
+                  <TextField
+                    select
+                    label="Estado"
+                    value={templateEdits[tpl.id] ?? ''}
+                    onChange={(e) => setTemplateEdits((prev) => ({ ...prev, [tpl.id]: e.target.value }))}
+                    sx={{ minWidth: 200 }}
+                  >
+                    {templateStatusOptions.map((opt) => (
+                      <MenuItem key={opt} value={opt}>
+                        {opt}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                </Stack>
+              ))}
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setTemplateEditOpen(false)} disabled={templateEditSaving}>
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSaveTemplateStatuses}
+            disabled={templateEditSaving || templatesForSelectedDay.length === 0}
+          >
+            Guardar cambios
           </Button>
         </DialogActions>
       </Dialog>
