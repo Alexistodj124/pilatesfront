@@ -616,9 +616,11 @@ export default function Suscripciones() {
                   </MenuItem>
                 ))}
               </TextField>
-              <Button variant="outlined" onClick={() => setOpenPlanDialog(true)}>
-                Nuevo plan
-              </Button>
+              {isAdmin && (
+                <Button variant="outlined" onClick={() => setOpenPlanDialog(true)}>
+                  Nuevo plan
+                </Button>
+              )}
             </Stack>
             <TextField
               label="Fecha inicio"
