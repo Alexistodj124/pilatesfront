@@ -10,6 +10,7 @@ import AddPhotoAlternateIcon from '@mui/icons-material/AddPhotoAlternate'
 import AddIcon from '@mui/icons-material/Add'
 
 import { API_BASE_URL } from '../config/api'
+import { comprimirImagen } from '../utils/image'
 
 
 const tienda = [
@@ -272,15 +273,20 @@ export default function NuevaCompra() {
     cargarTiendas()
   }, [])
 
-  const handleImageChange = (e) => {
+  const handleImageChange = async (e) => {
     const file = e.target.files?.[0]
     if (file) {
-      const reader = new FileReader()
-      reader.onload = () => {
-        setPreview(reader.result)
-        setProducto((prev) => ({ ...prev, imagen: reader.result }))
+      try {
+        const imagen = await comprimirImagen(file)
+        setPreview(imagen)
+        setProducto((prev) => ({ ...prev, imagen }))
+      } catch (err) {
+        console.error(err)
+        alert('No se pudo leer la imagen. Prueba con una foto JPG o PNG.')
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ''
+        }
       }
-      reader.readAsDataURL(file)
     }
   }
 
@@ -310,6 +316,11 @@ export default function NuevaCompra() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
+
+      if (res.status === 413) {
+        alert('La imagen es demasiado grande. Prueba con otra foto o una captura de pantalla.')
+        return
+      }
 
       if (!res.ok) {
         const errText = await res.text()
